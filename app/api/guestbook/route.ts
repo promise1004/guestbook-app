@@ -3,23 +3,36 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { hashPw } from "@/lib/pw";
 import { isAdminKey } from "@/lib/admin";
 
-// ✅ 목록 조회: GET /api/guestbook?sort=new|old
+// ✅ 목록 조회: GET /api/guestbook?sort=new|old&page=1&limit=5
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const sort = url.searchParams.get("sort") || "new";
-
     const ascending = sort === "old";
 
-    // entries 불러오기
+    // ✅ 페이지/개수 파라미터 (기본: 1페이지, 5개)
+    const page = Math.max(1, Number(url.searchParams.get("page") || "1"));
+    const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") || "5")));
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    // ✅ 전체 개수(페이지네이션용)
+    const { count, error: cErr } = await supabaseAdmin
+      .from("guestbook_entries")
+      .select("*", { count: "exact", head: true });
+
+    if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
+
+    // ✅ entries: 해당 페이지 범위만 가져오기
     const { data: entries, error: e1 } = await supabaseAdmin
       .from("guestbook_entries")
       .select("id,name,avatar,content,created_at")
-      .order("created_at", { ascending });
+      .order("created_at", { ascending })
+      .range(from, to);
 
     if (e1) return NextResponse.json({ error: e1.message }, { status: 500 });
 
-    // replies 불러오기
+    // ✅ replies: 현재 페이지의 entry들에 대해서만 가져오기
     const entryIds = (entries ?? []).map((e) => e.id);
     let replies: any[] = [];
 
@@ -34,7 +47,7 @@ export async function GET(req: Request) {
       replies = r ?? [];
     }
 
-    // 합치기
+    // ✅ 합치기
     const replyMap = new Map<string, any[]>();
     for (const r of replies) {
       const arr = replyMap.get(r.entry_id) ?? [];
@@ -47,7 +60,16 @@ export async function GET(req: Request) {
       replies: replyMap.get(e.id) ?? [],
     }));
 
-    return NextResponse.json({ entries: merged });
+    const total = count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return NextResponse.json({
+      entries: merged,
+      page,
+      limit,
+      total,
+      totalPages,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Server error" }, { status: 500 });
   }

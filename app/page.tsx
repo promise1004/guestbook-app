@@ -31,6 +31,10 @@ export default function Home() {
 
   const [openReplyFor, setOpenReplyFor] = useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
+const [totalPages, setTotalPages] = useState(1);
+const limit = 5;
+
   // ✅ 답글 본인 인증된 replyId 저장
 const [verifiedReplies, setVerifiedReplies] = useState<Record<string, boolean>>({});
 
@@ -92,11 +96,10 @@ useEffect(() => {
   setVerifyPw("");
 }
 
-  async function load() {
-  const res = await fetch("/api/guestbook?sort=new");
+async function load(p = page) {
+  const res = await fetch(`/api/guestbook?sort=new&page=${p}&limit=${limit}`);
   const text = await res.text();
 
-  // JSON이 비어있거나 HTML이면 여기서 안 터지고, 원인 확인 가능
   let data: any = {};
   try {
     data = text ? JSON.parse(text) : {};
@@ -112,6 +115,8 @@ useEffect(() => {
   }
 
   setEntries(data.entries ?? []);
+  setTotalPages(data.totalPages ?? 1);
+  setPage(data.page ?? p);
 }
 
   useEffect(() => {
@@ -120,8 +125,9 @@ useEffect(() => {
   }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+  load(page);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [page]);
 
   function setAdmin() {
     const k = prompt("관리자 키를 입력하세요");
@@ -147,7 +153,7 @@ useEffect(() => {
     setAvatar("🙂");
     setPassword("");
     setContent("");
-    load();
+    load(page);
   }
 
   async function submitReply(entryId: string, r: { name: string; password: string; content: string }) {
@@ -158,7 +164,7 @@ useEffect(() => {
     });
     const data = await res.json();
     if (!res.ok) return alert(data.error || "답글 실패");
-    load();
+    load(page);
   }
 
   async function editEntry(entryId: string) {
@@ -176,7 +182,7 @@ useEffect(() => {
 
     const data = await res.json();
     if (!res.ok) return alert(data.error || "수정 실패");
-    load();
+    load(page);
   }
 
   async function deleteEntry(entryId: string) {
@@ -194,7 +200,7 @@ useEffect(() => {
 
     const data = await res.json();
     if (!res.ok) return alert(data.error || "삭제 실패");
-    load();
+    load(page);
   }
 
   // =========================
@@ -241,7 +247,7 @@ try {
     if (!res.ok) return alert(data.error || "답글 수정 실패");
 
     cancelEditReply();
-    load();
+    load(page);
   }
 
   // =========================
@@ -279,7 +285,7 @@ try {
 
     if (editingReplyId === replyId) cancelEditReply();
     setDeleteReplyUi(null);
-    load();
+    load(page);
   }
 
   return (
@@ -392,6 +398,42 @@ try {
     이 방명록은 자유롭게 작성하실 수 있습니다.<br />
     비밀번호는 <b>수정·삭제 시 꼭 필요</b>하니 잊지 말아주세요 🙂
   </div>
+</div>
+
+<div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 16 }}>
+  <button
+    onClick={() => setPage((p) => Math.max(1, p - 1))}
+    disabled={page <= 1}
+    style={{
+      padding: "8px 12px",
+      borderRadius: 10,
+      border: "1px solid #e5e7eb",
+      background: page <= 1 ? "#f3f4f6" : "#fff",
+      cursor: page <= 1 ? "not-allowed" : "pointer",
+      fontSize: 13,
+    }}
+  >
+    이전
+  </button>
+
+  <div style={{ fontSize: 13, color: "#6b7280", display: "flex", alignItems: "center" }}>
+    {page} / {totalPages}
+  </div>
+
+  <button
+    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+    disabled={page >= totalPages}
+    style={{
+      padding: "8px 12px",
+      borderRadius: 10,
+      border: "1px solid #e5e7eb",
+      background: page >= totalPages ? "#f3f4f6" : "#fff",
+      cursor: page >= totalPages ? "not-allowed" : "pointer",
+      fontSize: 13,
+    }}
+  >
+    다음
+  </button>
 </div>
 
       {/* 리스트 카드 */}
