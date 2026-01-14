@@ -54,6 +54,13 @@ const [verifyPw, setVerifyPw] = useState("");
     pw: string;
   } | null>(null);
 
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
+useEffect(() => {
+  // iframe 안에서 열렸는지 확인
+  setIsEmbedded(window.self !== window.top);
+}, []);
+
   function formatDateTime(dateString: string) {
   const d = new Date(dateString);
 
@@ -276,7 +283,13 @@ try {
   }
 
   return (
-    <div style={{ maxWidth: 920, margin: "40px auto", padding: "0 16px" }}>
+    <div
+  style={{
+    maxWidth: isEmbedded ? 1320 : 920,
+    margin: "40px auto",
+    padding: "0 16px",
+  }}
+>
       {/* 제목 + 관리자 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ fontSize: 22, marginBottom: 14 }}>방명록</h1>
