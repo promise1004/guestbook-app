@@ -1,3 +1,5 @@
+// deploy trigger
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -158,7 +160,7 @@ async function submitEntry() {
     }
 
     console.log("CLIENT image_url =", image_url); // ✅ 추가
-    
+
     const res = await fetch("/api/guestbook", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
