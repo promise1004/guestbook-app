@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     // ✅ entries: 해당 페이지 범위만 가져오기
     const { data: entries, error: e1 } = await supabaseAdmin
       .from("guestbook_entries")
-      .select("id,name,avatar,content,created_at")
+      .select("id,name,avatar,content,image_url,created_at")
       .order("created_at", { ascending })
       .range(from, to);
 
@@ -87,12 +87,19 @@ export async function POST(req: Request) {
     const password = String(body.password ?? "").trim();
     const adminKey = String(body.adminKey ?? "").trim();
 
+    // ✅ 핵심: snake_case로 받기
+    const image_url =
+      body.image_url && String(body.image_url).trim().length > 0
+        ? String(body.image_url).trim()
+        : null;
+
+    console.log("POST body.image_url =", image_url); // ✅ 여기서 null 아니어야 정상
+
     if (!name) return NextResponse.json({ error: "닉네임을 입력하세요." }, { status: 400 });
     if (!content) return NextResponse.json({ error: "내용을 입력하세요." }, { status: 400 });
 
     const admin = isAdminKey(adminKey);
 
-    // 일반 사용자는 비번 필수
     let password_hash: string | null = null;
     if (!admin) {
       if (password.length < 4) {
@@ -100,7 +107,6 @@ export async function POST(req: Request) {
       }
       password_hash = await hashPw(password);
     } else {
-      // 관리자는 비번 없이도 작성 가능(원하면 여기서도 hash 만들 수 있음)
       password_hash = await hashPw(password || "admin");
     }
 
@@ -108,6 +114,7 @@ export async function POST(req: Request) {
       name,
       avatar,
       content,
+      image_url, // ✅ DB 컬럼에 그대로 넣기
       password_hash,
       is_admin: admin,
       created_at: new Date().toISOString(),
@@ -120,3 +127,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err?.message || "Server error" }, { status: 500 });
   }
 }
+

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 type Reply = {
   id: string;
@@ -17,6 +18,7 @@ type Entry = {
   avatar: string;
   content: string;
   created_at: string;
+  image_url?: string | null;   // ✅ 추가
   replies: Reply[];
 };
 
@@ -59,6 +61,7 @@ const [verifyPw, setVerifyPw] = useState("");
   } | null>(null);
 
   const [isEmbedded, setIsEmbedded] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
 function goPage(p: number) {
   setPage(p);
@@ -146,20 +149,60 @@ async function load(p = page) {
     localStorage.removeItem("ADMIN_KEY");
   }
 
-  async function submitEntry() {
+async function submitEntry() {
+  try {
+    let image_url: string | null = null;
+
+    if (imageFile) {
+      image_url = await uploadImage(imageFile); // ✅ 업로드 먼저
+    }
+
+    console.log("CLIENT image_url =", image_url); // ✅ 추가
+    
     const res = await fetch("/api/guestbook", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, avatar, password, content, adminKey }),
+      body: JSON.stringify({
+        name,
+        avatar,
+        password,
+        content,
+        adminKey,
+        image_url, // ✅ DB로 같이 보냄
+      }),
     });
+
     const data = await res.json();
     if (!res.ok) return alert(data.error || "등록 실패");
+
     setName("");
     setAvatar("🙂");
     setPassword("");
     setContent("");
+    setImageFile(null); // ✅ 파일도 초기화
+
     load(page);
+  } catch (err: any) {
+    alert(err?.message || "이미지 업로드 실패");
   }
+}
+
+  async function uploadImage(file: File) {
+  const ext = file.name.split(".").pop();
+  const filename = `${Date.now()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from("guestbook-images")
+    .upload(filename, file);
+
+  if (error) throw error;
+
+  const { data } = supabase.storage
+    .from("guestbook-images")
+    .getPublicUrl(filename);
+
+  return data.publicUrl;
+}
 
   async function submitReply(entryId: string, r: { name: string; password: string; content: string }) {
     const res = await fetch(`/api/guestbook/${entryId}/replies`, {
@@ -354,6 +397,16 @@ try {
               style={inputStyle}
             />
           </Field>
+
+            {/* ✅ 여기 추가: 이미지 첨부 */}
+  <Field label="사진 첨부" narrow>
+    <input
+  type="file"
+  accept="image/*"
+  onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+  style={inputStyle}
+/>
+  </Field>
         </div>
 
         <div style={{ marginTop: 10 }}>
@@ -475,17 +528,32 @@ try {
               </div>
 
               {/* 본문 (패딩 추가) */}
-              <div
-                style={{
-                  marginTop: 10,
-                  paddingLeft: INDENT,
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.6,
-                  fontSize: 15,
-                }}
-              >
-                {e.content}
-              </div>
+<div
+  style={{
+    marginTop: 10,
+    paddingLeft: INDENT,
+    whiteSpace: "pre-wrap",
+    lineHeight: 1.6,
+    fontSize: 15,
+  }}
+>
+  {e.content}
+</div>
+
+{/* ✅ 여기부터 이미지 출력 */}
+{e.image_url && (
+  <div style={{ marginTop: 12, paddingLeft: INDENT }}>
+    <img
+      src={e.image_url}
+      alt="첨부 이미지"
+      style={{
+        maxWidth: "100%",
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+      }}
+    />
+  </div>
+)}
 
               {/* 답글 목록 */}
               {e.replies?.length ? (
