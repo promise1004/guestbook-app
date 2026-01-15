@@ -60,6 +60,11 @@ const [verifyPw, setVerifyPw] = useState("");
 
   const [isEmbedded, setIsEmbedded] = useState(false);
 
+function goPage(p: number) {
+  setPage(p);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 useEffect(() => {
   // iframe 안에서 열렸는지 확인
   setIsEmbedded(window.self !== window.top);
@@ -400,41 +405,10 @@ try {
   </div>
 </div>
 
-<div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 16 }}>
-  <button
-    onClick={() => setPage((p) => Math.max(1, p - 1))}
-    disabled={page <= 1}
-    style={{
-      padding: "8px 12px",
-      borderRadius: 10,
-      border: "1px solid #e5e7eb",
-      background: page <= 1 ? "#f3f4f6" : "#fff",
-      cursor: page <= 1 ? "not-allowed" : "pointer",
-      fontSize: 13,
-    }}
-  >
-    이전
-  </button>
-
-  <div style={{ fontSize: 13, color: "#6b7280", display: "flex", alignItems: "center" }}>
-    {page} / {totalPages}
-  </div>
-
-  <button
-    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-    disabled={page >= totalPages}
-    style={{
-      padding: "8px 12px",
-      borderRadius: 10,
-      border: "1px solid #e5e7eb",
-      background: page >= totalPages ? "#f3f4f6" : "#fff",
-      cursor: page >= totalPages ? "not-allowed" : "pointer",
-      fontSize: 13,
-    }}
-  >
-    다음
-  </button>
-</div>
+<div style={{ marginTop: 20, marginBottom: 20 }}>
+        <Pagination page={page} totalPages={totalPages} onChange={goPage}
+        />
+      </div>
 
       {/* 리스트 카드 */}
       <div
@@ -446,6 +420,7 @@ try {
           background: "#fff",
         }}
       >
+
         {entries.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "#6b7280" }}>
             아직 방명록이 없어요. 첫 글을 남겨주세요 🙂
@@ -652,52 +627,6 @@ try {
       </>
     )}
 
-    {/* ✅ 본인확인 인라인 UI */}
-    {!isAdminMode && verifyReplyId === r.id && !canManageReply && !isEditing ? (
-      <div
-        style={{
-          marginTop: 10,
-          paddingTop: 10,
-          borderTop: "1px dashed #e5e7eb",
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <input
-          type="password"
-          value={verifyPw}
-          onChange={(ev) => setVerifyPw(ev.target.value)}
-          placeholder="비밀번호(4자 이상)"
-          style={{ ...inputStyle, maxWidth: 220, padding: "8px 10px" }}
-        />
-        <button
-          onClick={() => verifyReply(e.id, r.id)}
-          style={{
-            padding: "8px 10px",
-            borderRadius: 10,
-            border: "none",
-            background: "#111827",
-            color: "#fff",
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
-          확인
-        </button>
-        <button
-          onClick={() => {
-            setVerifyReplyId(null);
-            setVerifyPw("");
-          }}
-          style={{ ...linkBtn, fontSize: 12 }}
-        >
-          취소
-        </button>
-      </div>
-    ) : null}
-
     {/* ✅ 삭제 확인 UI (일반 유저) */}
     {isDeleteOpen && !isAdminMode ? (
       <div
@@ -842,8 +771,125 @@ try {
               </div>
             </div>
           );
-        })}
+                })}
       </div>
+
+      {/* ✅ 방명록 제일 하단 페이지네이션 */}
+      <div style={{ marginTop: 24 }}>
+        <Pagination page={page} totalPages={totalPages} onChange={goPage}
+        />
+      </div>
+    </div>
+  );
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  const windowSize = 5;
+  const jump = 10;
+
+  let start = Math.max(1, page - Math.floor(windowSize / 2));
+  let end = start + windowSize - 1;
+
+  if (end > totalPages) {
+    end = totalPages;
+    start = Math.max(1, end - windowSize + 1);
+  }
+
+  const pages: number[] = [];
+  for (let p = start; p <= end; p++) pages.push(p);
+
+const btn: React.CSSProperties = {
+  minWidth: 32,     // ⬅ 36 → 32
+  height: 30,       // ⬅ 34 → 30
+  borderRadius: 10, // ⬅ 12 → 10
+  border: "1px solid #e5e7eb",
+  background: "#fff",
+  cursor: "pointer",
+  fontSize: 12,     // ⬅ 13 → 12
+};
+
+  const active: React.CSSProperties = {
+    ...btn,
+    background: "#111827",
+    color: "#fff",
+    fontWeight: 700,
+  };
+
+  const disabled: React.CSSProperties = {
+    ...btn,
+    opacity: 0.4,
+    cursor: "not-allowed",
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        justifyContent: "center",
+        marginTop: 16,
+        flexWrap: "wrap",
+        alignItems: "center",
+      }}
+    >
+      {/* 이전 (10페이지) */}
+      <button
+        disabled={page <= 1}
+        onClick={() => onChange(Math.max(1, page - jump))}
+        style={page <= 1 ? disabled : btn}
+      >
+        이전
+      </button>
+
+      {/* 앞쪽 */}
+      {start > 1 && (
+        <>
+          <button onClick={() => onChange(1)} style={btn}>
+            1
+          </button>
+          {start > 2 && <span style={{ color: "#9ca3af" }}>…</span>}
+        </>
+      )}
+
+      {/* 가운데 */}
+      {pages.map((p) => (
+        <button
+          key={p}
+          onClick={() => onChange(p)}
+          style={p === page ? active : btn}
+        >
+          {p}
+        </button>
+      ))}
+
+      {/* 뒤쪽 */}
+      {end < totalPages && (
+        <>
+          {end < totalPages - 1 && <span style={{ color: "#9ca3af" }}>…</span>}
+          <button onClick={() => onChange(totalPages)} style={btn}>
+            {totalPages}
+          </button>
+        </>
+      )}
+
+      {/* 다음 (10페이지) */}
+      <button
+        disabled={page >= totalPages}
+        onClick={() => onChange(Math.min(totalPages, page + jump))}
+        style={page >= totalPages ? disabled : btn}
+      >
+        다음
+      </button>
     </div>
   );
 }
