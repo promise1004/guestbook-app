@@ -123,20 +123,25 @@ export default function PreviewClient() {
       {/* ✅ 네 CSS 그대로 (지금 아임웹에 쓰던 CSS를 여기로 붙여넣어도 되고,
           아래는 “필수 최소 + 너 스타일 유지” 버전이야. */}
       <style>{`
-        /* ===== Guestbook Preview – Premium Warm Glass ===== */
+/* ===== Guestbook Preview – Premium Warm Glass v3 ===== */
 :root{
   --gb-ink: rgba(20,18,16,.92);
   --gb-sub: rgba(30,25,20,.62);
   --gb-line: rgba(15,23,42,.08);
 
-  --gb-amber: rgba(245,158,11,.55);
-  --gb-rose: rgba(251,113,133,.45);
+  --gb-amber: rgba(245,158,11,.60);
+  --gb-amber-soft: rgba(245,158,11,.16);
+  --gb-rose-soft: rgba(251,113,133,.12);
 
-  --gb-card: rgba(255,255,255,.78);
+  --gb-card: rgba(255,255,255,.82);
   --gb-card2: rgba(255,250,244,.78);
 
-  --gb-shadow: 0 10px 30px rgba(15,23,42,.10);
-  --gb-shadow2: 0 8px 18px rgba(15,23,42,.08);
+  /* ✅ 그림자 전체적으로 약하게 */
+  --sh-1: 0 8px 18px rgba(15,23,42,.07);
+  --sh-2: 0 14px 28px rgba(15,23,42,.09);
+  --sh-in: inset 0 1px 0 rgba(255,255,255,.78);
+
+  --radius: 18px;
 }
 
 .gb-preview{
@@ -146,8 +151,8 @@ export default function PreviewClient() {
   color: var(--gb-ink);
 
   background:
-    radial-gradient(1200px 520px at 18% 20%, rgba(245, 158, 11, 0.12), transparent 60%),
-    radial-gradient(980px 560px at 82% 78%, rgba(251, 113, 133, 0.10), transparent 60%),
+    radial-gradient(1200px 520px at 18% 20%, rgba(245,158,11,.12), transparent 60%),
+    radial-gradient(980px 560px at 82% 78%, rgba(251,113,133,.10), transparent 60%),
     linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,250,244,0.92));
 
   border-top: 1px solid rgba(15, 23, 42, 0.06);
@@ -158,9 +163,9 @@ export default function PreviewClient() {
   content:"";
   position:absolute; inset:0;
   background:
-    radial-gradient(700px 220px at 50% 0%, rgba(0,0,0,0.05), transparent 60%),
+    radial-gradient(700px 220px at 50% 0%, rgba(0,0,0,0.04), transparent 60%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cg fill='none' stroke='rgba(0,0,0,0.06)' stroke-width='1'%3E%3Cpath d='M0 80h160'/%3E%3Cpath d='M80 0v160'/%3E%3C/g%3E%3C/svg%3E");
-  opacity:.12;
+  opacity:.10;
   pointer-events:none;
 }
 
@@ -215,7 +220,7 @@ export default function PreviewClient() {
   opacity:1;
 }
 
-/* ✅ 그리드 간격/리듬 더 고급스럽게 */
+/* ✅ 카드 그리드 */
 .gbp-list{
   display:grid;
   gap:16px;
@@ -229,35 +234,67 @@ export default function PreviewClient() {
   .gbp-list{ grid-template-columns: 1fr; }
 }
 
-/* ✅ 카드: 유리 + 라이트 골드 테두리 + 마우스 떠오름 */
+/* =======================
+   ✅ 카드: 더 깨끗한 그림자 + 샤인(고급기능)
+======================= */
 .gbp-card{
   position:relative;
   overflow:hidden;
-  border-radius:18px;
+  border-radius: var(--radius);
   padding:14px 14px 12px;
 
   background: linear-gradient(180deg, var(--gb-card), var(--gb-card2));
-  border: 1px solid rgba(245,158,11,.14);
-  box-shadow: var(--gb-shadow2);
+  border: 1px solid rgba(245,158,11,.12);
+  box-shadow: var(--sh-1), var(--sh-in);
   backdrop-filter: blur(10px);
 
-  transition: transform .20s ease, box-shadow .20s ease, border-color .20s ease;
+  transform: translateZ(0);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 
+/* 배경 은은한 색 번짐 */
 .gbp-card::before{
   content:"";
   position:absolute; inset:-1px;
   background:
     radial-gradient(420px 160px at 16% 8%, rgba(245, 158, 11, 0.14), transparent 62%),
     radial-gradient(420px 180px at 86% 92%, rgba(251, 113, 133, 0.10), transparent 64%);
-  opacity:.9;
+  opacity:.85;
+  pointer-events:none;
+}
+
+/* ✅ 고급: 샤인(빛살) — hover시에만 살짝 지나감 */
+.gbp-card::after{
+  content:"";
+  position:absolute;
+  top:-40%;
+  left:-60%;
+  width:50%;
+  height:180%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255,255,255,.35),
+    transparent
+  );
+  transform: rotate(18deg);
+  opacity:0;
   pointer-events:none;
 }
 
 .gbp-card:hover{
-  transform: translateY(-3px);
-  box-shadow: var(--gb-shadow);
-  border-color: rgba(245,158,11,.22);
+  transform: translateY(-2px);
+  box-shadow: var(--sh-2), var(--sh-in);
+  border-color: rgba(245,158,11,.18);
+}
+.gbp-card:hover::after{
+  opacity:.65;
+  animation: gb-shine 900ms ease both;
+}
+
+@keyframes gb-shine{
+  from{ transform: translateX(0) rotate(18deg); }
+  to{ transform: translateX(320%) rotate(18deg); }
 }
 
 .gbp-row{
@@ -268,7 +305,6 @@ export default function PreviewClient() {
   gap:10px;
 }
 
-/* ✅ 아바타를 “메달/버튼” 느낌으로 */
 .gbp-avatar{
   width:38px; height:38px;
   border-radius:14px;
@@ -279,20 +315,22 @@ export default function PreviewClient() {
   background:
     radial-gradient(12px 12px at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,.75)),
     linear-gradient(180deg, rgba(255,246,232,.92), rgba(255,255,255,.88));
-  border: 1px solid rgba(245,158,11,.22);
-  box-shadow:
-    0 10px 16px rgba(15, 23, 42, 0.10),
-    inset 0 1px 0 rgba(255,255,255,0.85);
+  border: 1px solid rgba(245,158,11,.18);
+
+  /* ✅ 아바타 그림자도 약하게 */
+  box-shadow: 0 8px 14px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.8);
+
   flex:0 0 auto;
   font-size:16px;
 }
 
 .gbp-meta{ min-width:0; }
 
+/* ✅ 닉네임: bold는 유지하되 "덜 두껍게" */
 .gbp-name{
   margin:0;
   font-size:14px;
-  font-weight:900;
+  font-weight:700; /* ← 기존 900급에서 낮춤 */
   letter-spacing:.01em;
   overflow:hidden;
   text-overflow:ellipsis;
@@ -306,7 +344,9 @@ export default function PreviewClient() {
   color: rgba(30, 25, 20, 0.56);
 }
 
-/* ✅ 글은 3줄 + 줄 간격/톤 조정 */
+/* =======================
+   ✅ 글: 3줄 + 아래 페이드아웃(고급기능)
+======================= */
 .gbp-text{
   position:relative;
   z-index:1;
@@ -322,18 +362,28 @@ export default function PreviewClient() {
   word-break:break-word;
 }
 
-/* ✅ 스켈레톤 더 고급스럽게 */
+/* 페이드아웃 그라데이션 */
+.gbp-text::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:0;
+  height:1.5em;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,250,244,0.92));
+  pointer-events:none;
+}
+
+/* ✅ 스켈레톤 */
 .gbp-skel{
-  border-radius:18px;
+  border-radius: var(--radius);
   padding:14px;
   background: rgba(255,255,255,0.62);
-  border: 1px solid rgba(245,158,11,.12);
-  box-shadow: 0 10px 18px rgba(15,23,42,.06);
+  border: 1px solid rgba(245,158,11,.10);
+  box-shadow: 0 10px 16px rgba(15,23,42,.05);
 }
 .gbp-sbar{
   height:10px;
   border-radius:999px;
-  background: linear-gradient(90deg, rgba(15,23,42,.07), rgba(15,23,42,.12), rgba(15,23,42,.07));
+  background: linear-gradient(90deg, rgba(15,23,42,.06), rgba(15,23,42,.11), rgba(15,23,42,.06));
   margin:8px 0;
 }
 .gbp-sbar.w1{ width:52%; }
@@ -342,6 +392,9 @@ export default function PreviewClient() {
 
 .gbp-foot{ margin-top:20px; text-align:center; }
 
+/* =======================
+   ✅ 버튼: 테두리 제거 + hover 시 색 변함
+======================= */
 .gbp-btn{
   display:inline-flex;
   align-items:center;
@@ -351,20 +404,30 @@ export default function PreviewClient() {
   padding:10px 16px;
   border-radius:999px;
 
-  background:
-    radial-gradient(120px 40px at 30% 20%, rgba(255,255,255,.9), transparent 60%),
-    linear-gradient(180deg, rgba(255,246,232,.65), rgba(255,255,255,.55));
-  border:1px solid rgba(245,158,11,.18);
-  color: rgba(20, 18, 16, 0.84);
+  border: none;              /* ✅ 테두리 제거 */
+  outline: none;
+
+  color: rgba(20,18,16,.86);
   text-decoration:none;
   font-size:13px;
-  box-shadow: 0 12px 20px rgba(15,23,42,.08);
-  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  font-weight:650;
+
+  background: rgba(15,23,42,0.06);
+  box-shadow: 0 10px 16px rgba(15,23,42,.06); /* ✅ 약하게 */
+  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
 }
+
 .gbp-btn:hover{
   transform: translateY(-1px);
-  border-color: rgba(245,158,11,.28);
-  box-shadow: 0 16px 26px rgba(15,23,42,.10);
+
+  /* ✅ hover 색 변경 (따뜻한 골드 톤) */
+  background: linear-gradient(
+    180deg,
+    rgba(245,158,11,.18),
+    rgba(255,255,255,.55)
+  );
+
+  box-shadow: 0 14px 22px rgba(15,23,42,.08);
 }
 
 @media (max-width:520px){
