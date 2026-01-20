@@ -370,6 +370,7 @@ export default function PreviewClient() {
   height:1.5em;
   background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,250,244,0.92));
   pointer-events:none;
+  display:none !important;
 }
 
 /* ✅ 스켈레톤 */
@@ -412,7 +413,7 @@ export default function PreviewClient() {
   font-size:13px;
   font-weight:650;
 
-  background: rgba(15,23,42,0.06);
+  background: rgba(255,255,255,0.92) !important;
   box-shadow: 0 10px 16px rgba(15,23,42,.06); /* ✅ 약하게 */
   transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
 }
@@ -435,6 +436,51 @@ export default function PreviewClient() {
   .gbp-head{ align-items:flex-start; }
   .gbp-title{ font-size:24px; }
   .gbp-name{ max-width: 22ch; }
+}
+  /* ✅ 골드 테두리 맥동 (hover 시만) */
+.gbp-card{
+  position: relative;
+}
+
+/* 테두리 발광 레이어 */
+.gbp-card::marker{ content:""; } /* (아임웹/브라우저 이슈 방지용 더미) */
+
+.gbp-card:hover{
+  animation: gb-borderPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes gb-borderPulse{
+  0%{
+    box-shadow: var(--sh-2), var(--sh-in);
+    border-color: rgba(245,158,11,.18);
+  }
+  50%{
+    box-shadow:
+      var(--sh-2),
+      var(--sh-in),
+      0 0 0 3px rgba(245,158,11,.10);
+    border-color: rgba(245,158,11,.34);
+  }
+  100%{
+    box-shadow: var(--sh-2), var(--sh-in);
+    border-color: rgba(245,158,11,.18);
+  }
+}
+  .gbp-card:hover .gbp-text{
+  color: rgba(20,18,16,.86);
+}
+  .gbp-card{
+  background-image:
+    linear-gradient(180deg, var(--gb-card), var(--gb-card2)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+  background-blend-mode: normal, multiply;
+}
+  .gbp-link{
+  background: linear-gradient(currentColor, currentColor) 0 100% / 0% 1px no-repeat;
+  border-bottom: none;
+}
+.gbp-link:hover{
+  background-size: 100% 1px;
 }
       `}</style>
     </>
