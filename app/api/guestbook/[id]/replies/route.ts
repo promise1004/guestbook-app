@@ -1,81 +1,104 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { verifyPw } from "@/lib/pw";
 import { isAdminKey } from "@/lib/admin";
+import { hashPw } from "@/lib/pw";
 
-export async function PUT(
-  req: Request,
-  ctx: { params: Promise<{ id: string; replyId: string }> }
-) {
-  const { id: entryId, replyId } = await ctx.params;
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "https://promise.page24.app",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400",
+};
 
-  const body = await req.json().catch(() => ({} as any));
-
-  const content = String(body.content ?? "").trim();
-  const password = String((body as any).password ?? "").trim();
-const adminKey = String((body as any).adminKey ?? "").trim();
-  const admin = isAdminKey(adminKey);
-
-  if (!content) return NextResponse.json({ error: "내용을 입력하세요." }, { status: 400 });
-
-  const { data: row, error: e1 } = await supabaseAdmin
-    .from("guestbook_replies")
-    .select("id,entry_id,password_hash")
-    .eq("id", replyId)
-    .single();
-
-  if (e1 || !row) return NextResponse.json({ error: "대상을 찾을 수 없습니다." }, { status: 404 });
-  if (row.entry_id !== entryId) return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
-
-  if (!admin) {
-    if (password.length < 4) {
-      return NextResponse.json({ error: "비밀번호를 입력하세요." }, { status: 401 });
-    }
-    const ok = await verifyPw(password, row.password_hash);
-    if (!ok) return NextResponse.json({ error: "비밀번호가 올바르지 않습니다." }, { status: 403 });
-  }
-
-  const { error: e2 } = await supabaseAdmin
-    .from("guestbook_replies")
-    .update({ content, updated_at: new Date().toISOString() })
-    .eq("id", replyId);
-
-  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
-export async function DELETE(
-  req: Request,
-  ctx: { params: Promise<{ id: string; replyId: string }> }
+/**
+ * 댓글 목록
+ * GET /api/guestbook/[id]/replies
+ */
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> }
 ) {
-  const { id: entryId, replyId } = await ctx.params;
+  try {
+    const { id: entryId } = await ctx.params;
 
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    const { data, error } = await supabaseAdmin
+      .from("guestbook_replies")
+      .select("id,entry_id,name,content,created_at,is_admin")
+      .eq("entry_id", entryId)
+      .order("created_at", { ascending: true });
 
-  const password = String(body.password ?? "").trim();
-  const adminKey = String(body.adminKey ?? "").trim();
-  const admin = isAdminKey(adminKey);
-
-  const { data: row, error: e1 } = await supabaseAdmin
-    .from("guestbook_replies")
-    .select("id,entry_id,password_hash")
-    .eq("id", replyId)
-    .single();
-
-  if (e1 || !row) return NextResponse.json({ error: "대상을 찾을 수 없습니다." }, { status: 404 });
-  if (row.entry_id !== entryId) return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
-
-  if (!admin) {
-    if (password.length < 4) {
-      return NextResponse.json({ error: "비밀번호를 입력하세요." }, { status: 401 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS });
     }
-    const ok = await verifyPw(password, row.password_hash);
-    if (!ok) return NextResponse.json({ error: "비밀번호가 올바르지 않습니다." }, { status: 403 });
+
+    return NextResponse.json({ replies: data ?? [] }, { headers: CORS_HEADERS });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || "Server error" },
+      { status: 500, headers: CORS_HEADERS }
+    );
   }
+}
 
-  const { error: e2 } = await supabaseAdmin.from("guestbook_replies").delete().eq("id", replyId);
-  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
+/**
+ * 댓글 작성
+ * POST /api/guestbook/[id]/replies
+ */
+export async function POST(
+  req: Request,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: entryId } = await ctx.params;
 
-  return NextResponse.json({ ok: true });
+    const body = await req.json().catch(() => null);
+    if (!body) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS });
+    }
+
+    const name = String(body.name ?? "").trim();
+    const content = String(body.content ?? "").trim();
+    const password = String(body.password ?? "").trim();
+    const adminKey = String(body.adminKey ?? "").trim();
+    const is_admin = isAdminKey(adminKey);
+
+    if (!name) return NextResponse.json({ error: "닉네임을 입력하세요." }, { status: 400, headers: CORS_HEADERS });
+    if (!content) return NextResponse.json({ error: "내용을 입력하세요." }, { status: 400, headers: CORS_HEADERS });
+
+    // 관리자면 비번 없어도 통과, 아니면 4자리 이상
+    let password_hash: string | null = null;
+    if (!is_admin) {
+      if (password.length < 4) {
+        return NextResponse.json({ error: "비밀번호는 4자 이상 입력하세요." }, { status: 400, headers: CORS_HEADERS });
+      }
+      password_hash = await hashPw(password);
+    } else {
+      password_hash = await hashPw(password || "admin");
+    }
+
+    const { error } = await supabaseAdmin.from("guestbook_replies").insert({
+      entry_id: entryId,
+      name,
+      content,
+      password_hash,
+      is_admin,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS });
+    }
+
+    return NextResponse.json({ ok: true }, { headers: CORS_HEADERS });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || "Server error" },
+      { status: 500, headers: CORS_HEADERS }
+    );
+  }
 }
