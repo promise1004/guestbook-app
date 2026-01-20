@@ -114,7 +114,8 @@ export default function PreviewClient() {
               target="_top"
               rel="noreferrer"
             >
-              방명록 남기러 가기
+                <span className="gbp-btnIcon" aria-hidden="true"></span>
+              방명록 남기기
             </a>
           </div>
         </div>
@@ -146,7 +147,7 @@ export default function PreviewClient() {
 
 .gb-preview{
   position:relative;
-  padding:44px 18px;
+  padding:58px 18px;
   overflow:hidden;
   color: var(--gb-ink);
 
@@ -402,33 +403,42 @@ export default function PreviewClient() {
   justify-content:center;
   gap:8px;
 
-  padding:10px 16px;
+  padding:11px 18px;
   border-radius:999px;
 
-  border: none;              /* ✅ 테두리 제거 */
-  outline: none;
+  border:none;
+  outline:none;
 
   color: rgba(20,18,16,.86);
   text-decoration:none;
   font-size:13px;
   font-weight:650;
 
-  background: rgba(255,255,255,0.92) !important;
-  box-shadow: 0 10px 16px rgba(15,23,42,.06); /* ✅ 약하게 */
-  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+  background: rgba(255,255,255,0.94);
+  box-shadow: 0 10px 16px rgba(15,23,42,.06);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
 }
 
+/* ✅ hover: 따뜻한 골드 글로우 + 그라데이션 + 살짝 빛 */
 .gbp-btn:hover{
   transform: translateY(-1px);
+  box-shadow:
+    0 14px 22px rgba(15,23,42,.08),
+    0 0 0 3px rgba(245,158,11,.12);
 
-  /* ✅ hover 색 변경 (따뜻한 골드 톤) */
   background: linear-gradient(
     180deg,
-    rgba(245,158,11,.18),
-    rgba(255,255,255,.55)
+    rgba(245,158,11,.22),
+    rgba(255,255,255,.68)
   );
 
-  box-shadow: 0 14px 22px rgba(15,23,42,.08);
+  filter: saturate(1.08);
+}
+
+/* ✅ 클릭감 */
+.gbp-btn:active{
+  transform: translateY(0px);
+  box-shadow: 0 10px 16px rgba(15,23,42,.06);
 }
 
 @media (max-width:520px){
@@ -482,6 +492,30 @@ export default function PreviewClient() {
 .gbp-link:hover{
   background-size: 100% 1px;
 }
+  .gbp-btnIcon{
+  width:16px;
+  height:16px;
+  display:inline-block;
+  border-radius:5px;
+  background:
+    linear-gradient(180deg, rgba(245,158,11,.35), rgba(245,158,11,.10));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+
+  /* 연필 모양 느낌으로 살짝 기울기 */
+  transform: rotate(-18deg);
+  position:relative;
+}
+
+.gbp-btnIcon::after{
+  content:"";
+  position:absolute;
+  left:4px; top:4px;
+  width:8px; height:8px;
+  border-radius:3px;
+  background: rgba(20,18,16,.22);
+  opacity:.55;
+}
+
       `}</style>
     </>
   );
