@@ -3,6 +3,22 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { hashPw } from "@/lib/pw";
 import { isAdminKey } from "@/lib/admin";
 
+/* =========================
+   ✅ CORS (파일 최상단)
+========================= */
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "https://promise.page24.app",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+/* =========================
+   ✅ OPTIONS (파일 최상단)
+========================= */
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 // ✅ 목록 조회: GET /api/guestbook?sort=new|old&page=1&limit=5
 export async function GET(req: Request) {
   try {
@@ -21,7 +37,9 @@ export async function GET(req: Request) {
       .from("guestbook_entries")
       .select("*", { count: "exact", head: true });
 
-    if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
+    if (cErr) {
+      return NextResponse.json({ error: cErr.message }, { status: 500, headers: CORS_HEADERS });
+    }
 
     // ✅ entries: 해당 페이지 범위만 가져오기
     const { data: entries, error: e1 } = await supabaseAdmin
@@ -30,7 +48,9 @@ export async function GET(req: Request) {
       .order("created_at", { ascending })
       .range(from, to);
 
-    if (e1) return NextResponse.json({ error: e1.message }, { status: 500 });
+    if (e1) {
+      return NextResponse.json({ error: e1.message }, { status: 500, headers: CORS_HEADERS });
+    }
 
     // ✅ replies: 현재 페이지의 entry들에 대해서만 가져오기
     const entryIds = (entries ?? []).map((e) => e.id);
@@ -43,7 +63,9 @@ export async function GET(req: Request) {
         .in("entry_id", entryIds)
         .order("created_at", { ascending: true });
 
-      if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
+      if (e2) {
+        return NextResponse.json({ error: e2.message }, { status: 500, headers: CORS_HEADERS });
+      }
       replies = r ?? [];
     }
 
@@ -63,15 +85,15 @@ export async function GET(req: Request) {
     const total = count ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
-    return NextResponse.json({
-      entries: merged,
-      page,
-      limit,
-      total,
-      totalPages,
-    });
+    return NextResponse.json(
+      { entries: merged, page, limit, total, totalPages },
+      { headers: CORS_HEADERS }
+    );
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || "Server error" },
+      { status: 500, headers: CORS_HEADERS }
+    );
   }
 }
 
@@ -79,7 +101,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
-    if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    if (!body) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS });
+    }
 
     const name = String(body.name ?? "").trim();
     const avatar = String(body.avatar ?? "🙂").trim();
@@ -87,23 +111,27 @@ export async function POST(req: Request) {
     const password = String(body.password ?? "").trim();
     const adminKey = String(body.adminKey ?? "").trim();
 
-    // ✅ 핵심: snake_case로 받기
     const image_url =
       body.image_url && String(body.image_url).trim().length > 0
         ? String(body.image_url).trim()
         : null;
 
-    console.log("POST body.image_url =", image_url); // ✅ 여기서 null 아니어야 정상
-
-    if (!name) return NextResponse.json({ error: "닉네임을 입력하세요." }, { status: 400 });
-    if (!content) return NextResponse.json({ error: "내용을 입력하세요." }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: "닉네임을 입력하세요." }, { status: 400, headers: CORS_HEADERS });
+    }
+    if (!content) {
+      return NextResponse.json({ error: "내용을 입력하세요." }, { status: 400, headers: CORS_HEADERS });
+    }
 
     const admin = isAdminKey(adminKey);
 
     let password_hash: string | null = null;
     if (!admin) {
       if (password.length < 4) {
-        return NextResponse.json({ error: "비밀번호는 4자 이상 입력하세요." }, { status: 400 });
+        return NextResponse.json(
+          { error: "비밀번호는 4자 이상 입력하세요." },
+          { status: 400, headers: CORS_HEADERS }
+        );
       }
       password_hash = await hashPw(password);
     } else {
@@ -114,17 +142,22 @@ export async function POST(req: Request) {
       name,
       avatar,
       content,
-      image_url, // ✅ DB 컬럼에 그대로 넣기
+      image_url,
       password_hash,
       is_admin: admin,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS });
+    }
+
+    return NextResponse.json({ ok: true }, { headers: CORS_HEADERS });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || "Server error" },
+      { status: 500, headers: CORS_HEADERS }
+    );
   }
 }
-
