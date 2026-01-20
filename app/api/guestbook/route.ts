@@ -9,7 +9,9 @@ import { isAdminKey } from "@/lib/admin";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "https://promise.page24.app",
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+"Access-Control-Max-Age": "86400",
+
 };
 
 /* =========================
