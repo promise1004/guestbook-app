@@ -94,8 +94,6 @@ export default function HeroClient() {
         ))}
       </div>
 
-      <div className="tint" aria-hidden="true" />
-
       {/* ✅ 화살표 버튼 */}
       <button
         type="button"
@@ -155,20 +153,6 @@ export default function HeroClient() {
         }
         .slide.isActive {
           opacity: 1;
-        }
-
-        .tint {
-          position: absolute;
-          inset: 0;
-          background:
-    radial-gradient(900px 420px at 50% 55%,
-      rgba(0,0,0,0.00),
-      rgba(43,22,1,0.22) 70%,
-      rgba(43,22,1,0.32) 100%);
-          pointer-events: none;
-        }
-        @media (max-width: 520px) {
-          .tint{ background: rgba(43, 22, 1, 0.18); }
         }
 
         /* 버튼 */
