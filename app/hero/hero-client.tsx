@@ -160,13 +160,15 @@ export default function HeroClient() {
         .tint {
           position: absolute;
           inset: 0;
-          background: rgba(43, 22, 1, 0.7);
+          background:
+    radial-gradient(900px 420px at 50% 55%,
+      rgba(0,0,0,0.00),
+      rgba(43,22,1,0.22) 70%,
+      rgba(43,22,1,0.32) 100%);
           pointer-events: none;
         }
         @media (max-width: 520px) {
-          .tint {
-            background: rgba(43, 22, 1, 0.55);
-          }
+          .tint{ background: rgba(43, 22, 1, 0.18); }
         }
 
         /* 버튼 */
