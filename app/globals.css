@@ -279,3 +279,7 @@ html, body{
   gap: 8px;
   margin-left: auto;
 }
+
+html, body {
+  background: #fff;
+}
