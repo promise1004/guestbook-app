@@ -65,12 +65,12 @@ function canEditOrDelete(opts: { adminKey: string; password: string; pw_hash: st
 // PATCH /api/profiles/[id]/comments/[commentId]
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string; commentId: string } }
+  { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
   try {
-    const { id, commentId } = params;
+    const { id, commentId } = await params;
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({} as any));
     const content = String(body?.content ?? "").trim();
     const adminKey = String(body?.adminKey ?? "").trim();
     const password = String(body?.password ?? "").trim();
@@ -105,12 +105,12 @@ export async function PATCH(
 // DELETE /api/profiles/[id]/comments/[commentId]
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string; commentId: string } }
+  { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
   try {
-    const { id, commentId } = params;
+    const { id, commentId } = await params;
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({} as any));
     const adminKey = String(body?.adminKey ?? "").trim();
     const password = String(body?.password ?? "").trim();
 
