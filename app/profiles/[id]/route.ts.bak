@@ -1,0 +1,56 @@
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isAdminKey } from "@/lib/admin";
+
+export async function GET(_: Request, ctx: { params: { id: string } }) {
+  const id = ctx.params.id;
+
+  const { data, error } = await supabaseAdmin
+    .from("profile_posts")
+    .select("id,title,role,bio,cover_url,image_urls,created_at")
+    .eq("id", id)
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ post: data });
+}
+
+export async function PUT(req: Request, ctx: { params: { id: string } }) {
+  const id = ctx.params.id;
+  const body = await req.json().catch(() => ({}));
+  const { adminKey, title, role, bio, cover_url, image_urls } = body ?? {};
+
+  if (!isAdminKey(adminKey)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("profile_posts")
+    .update({
+      title: String(title ?? "").trim(),
+      role: String(role ?? "").trim(),
+      bio: String(bio ?? "").trim(),
+      cover_url: String(cover_url ?? "").trim(),
+      image_urls: Array.isArray(image_urls) ? image_urls : [],
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ post: data });
+}
+
+export async function DELETE(req: Request, ctx: { params: { id: string } }) {
+  const id = ctx.params.id;
+  const body = await req.json().catch(() => ({}));
+  const { adminKey } = body ?? {};
+
+  if (!isAdminKey(adminKey)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { error } = await supabaseAdmin.from("profile_posts").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}

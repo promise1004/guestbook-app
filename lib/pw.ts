@@ -1,10 +1,10 @@
-import bcrypt from "bcryptjs";
+// lib/pw.ts
+import crypto from "crypto";
 
-export async function hashPw(pw: string) {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(pw, salt);
+export function hashPw(pw: string) {
+  return crypto.createHash("sha256").update(pw).digest("hex");
 }
 
 export async function verifyPw(pw: string, hash: string) {
-  return bcrypt.compare(pw, hash);
+  return hashPw(pw) === hash;
 }
