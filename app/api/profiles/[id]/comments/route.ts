@@ -18,9 +18,12 @@ export async function GET(
 
     const { data, error } = await supabaseAdmin
       .from("profile_comments")
-      .select("id,post_id,name,content,image_urls,created_at")
+      .select("id,post_id,name,avatar,content,image_urls,likes_count,created_at")
       .eq("post_id", id)
-      .order("created_at", { ascending: true });
+      // ✅ 베스트(추천수 높은) 먼저
+      .order("likes_count", { ascending: false, nullsFirst: false })
+      // ✅ 같은 추천수면 최신이 위
+      .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ comments: data ?? [] });

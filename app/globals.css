@@ -280,6 +280,8 @@ html, body{
   margin-left: auto;
 }
 
-html, body {
-  background: #fff;
+html, body{
+  background:#fff !important;
+  height:auto;
+  overflow-y:auto;
 }

@@ -144,9 +144,7 @@ export default function ProfilesPage() {
 const css = `
 .board{
   min-height:100vh;
-  background:
-    radial-gradient(900px 420px at 50% 0%, rgba(245,158,11,.08), transparent 60%),
-    linear-gradient(180deg, #fbfaf8, #ffffff);
+  background:#fff; /* ✅ 완전 흰색 */
   color: rgba(15,23,42,.92);
 }
 

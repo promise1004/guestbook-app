@@ -33,14 +33,14 @@ type Comment = {
   content: string;
   image_urls: string[] | null;
   created_at: string;
-
+  likes_count?: number | null; 
   // ✅ 답글 목록 추가
   replies?: Reply[];
 };
 
 export default function ProfileDetailPage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id;
+  const params = useParams();
+const id = typeof (params as any)?.id === "string" ? (params as any).id : undefined;
 
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -260,6 +260,52 @@ useEffect(() => {
     }
     return out;
   }, [post]);
+
+  // ✅ 추천 API 호출
+async function likeComment(commentId: string) {
+  if (!id) return;
+
+  // 즉시 UI +1
+  setComments((prev) =>
+    prev.map((c) =>
+      c.id === commentId
+        ? { ...c, likes_count: (c.likes_count ?? 0) + 1 }
+        : c
+    )
+  );
+
+  const res = await fetch(`/api/profiles/${id}/comments/${commentId}/like`, {
+    method: "POST",
+  });
+
+  const t = await res.text();
+  let j: any = {};
+  try {
+    j = t ? JSON.parse(t) : {};
+  } catch {
+    j = { error: t };
+  }
+
+  if (!res.ok) {
+    // 실패 롤백
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === commentId
+          ? { ...c, likes_count: Math.max(0, (c.likes_count ?? 1) - 1) }
+          : c
+      )
+    );
+    alert(j?.error ?? "추천 실패");
+    return;
+  }
+
+  // 서버값으로 동기화
+  setComments((prev) =>
+    prev.map((c) =>
+      c.id === commentId ? { ...c, likes_count: j.likes_count ?? 0 } : c
+    )
+  );
+}
 
   function onPickFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
@@ -672,6 +718,14 @@ useEffect(() => {
     }
   }
 
+  // ✅ 베스트 추천수 계산 (comments 기준)
+const bestLikes = useMemo(() => {
+  const arr = comments ?? [];
+  let mx = 0;
+  for (const c of arr) mx = Math.max(mx, c.likes_count ?? 0);
+  return mx;
+}, [comments]);
+
   const progressRatio =
     progressTotal > 0 ? Math.min(1, Math.max(0, progressNow / progressTotal)) : 0;
 
@@ -747,405 +801,358 @@ useEffect(() => {
               </div>
 
               {comments.length === 0 ? (
-                <div className="empty">아직 댓글이 없어요.</div>
-              ) : (
-                <div className="list">
-
-                  {comments.map((c) => (
-                    <div className="item" key={c.id}>
-  {/* ✅ 헤더 한 줄: (왼쪽: 아바타+닉+시간) (오른쪽: 수정/삭제) */}
-  <div className="headRow">
-    <div className="left">
-      <div className="avatar" aria-hidden="true">
-        {c.avatar ?? "🙂"}
-      </div>
-
-<div className="meta">
-  <div className="nameLine">
-    <span className="name">{c.name}</span>
-    <span className="time">{new Date(c.created_at).toLocaleString()}</span>
-  </div>
-
-  {editingId !== c.id ? (
-    <div className="cBody">{c.content}</div>
-  ) : null}
-</div>
-    </div>
-
-<div className="actions">
-<button
-  className="aBtn"
-  type="button"
-  onClick={() => setOpenReplyFor(openReplyFor === c.id ? null : c.id)}
->
-  {openReplyFor === c.id ? "답글닫기" : "답글달기"}
-</button>
-
-  <button
-    className="aBtn"
-    type="button"
-    onClick={() => startEdit(c)}
-    disabled={busyId === c.id}
-  >
-    수정
-  </button>
-
-  <button
-    className="aBtn danger"
-    type="button"
-    onClick={() => deleteComment(c.id)}
-    disabled={busyId === c.id}
-  >
-    삭제
-  </button>
-</div>
-
-  </div>
-
-  {/* ✅ 내용은 닉네임 밑으로 */}
-  <div className="textWrap">
-    {editingId === c.id ? (
-      <>
-        <textarea
-          className="editTa"
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          placeholder="수정 내용을 입력하세요"
-        />
-
-        {/* (이하 수정 UI는 네 기존 그대로 두면 됨) */}
-        {/* ✅ 기존 이미지(유지/삭제) */}
-        {editKeepUrls.length ? (
-          <div className="editImgs">
-            {editKeepUrls.map((u) => (
-              <button
-                type="button"
-                className="keep"
-                key={u}
-                onClick={() => removeKeepUrl(u)}
-                title="클릭하면 삭제(제외)"
-              >
-                <img src={u} alt="" />
-                <span className="keepX">×</span>
-              </button>
-            ))}
-            <div className="hint">유지할 이미지만 남기고, 삭제할 건 클릭해서 빼면 돼</div>
-          </div>
-        ) : null}
-
-        {/* ✅ 새 이미지 추가 */}
-        <div className="editAdd">
-          <input
-            ref={editFileRef}
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: "none" }}
-            onChange={(e) => onPickEditFiles(e.target.files)}
-            disabled={busyId === c.id || uploading}
-          />
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => editFileRef.current?.click()}
-            disabled={busyId === c.id || uploading}
-          >
-            이미지 추가
-          </button>
-
-          {editPreviews.length ? (
-            <div className="pickWrap">
-              {editPreviews.map((src, idx) => (
-                <div className="pick" key={`${src}-${idx}`}>
-                  <img src={src} alt="" />
-                  <button type="button" className="x" onClick={() => removeEditFile(idx)} aria-label="삭제">
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="editBar">
-          {!isAdmin ? (
-            <input
-              className="pwIn"
-              value={editPw}
-              onChange={(e) => setEditPw(e.target.value)}
-              placeholder="작성자 비밀번호 (4자+)"
-              type="password"
-            />
-          ) : (
-            <div className="adminChip">관리자</div>
-          )}
-
-          <div className="editBtns">
-            <button className="btn" onClick={() => saveEdit(c.id)} disabled={busyId === c.id || uploading}>
-              저장
-            </button>
-            <button className="btn ghost" onClick={cancelEdit} disabled={busyId === c.id || uploading}>
-              취소
-            </button>
-          </div>
-        </div>
-
-        {(uploading || (progressTotal > 0 && progressNow > 0)) ? (
-          <div className="prog">
-            <div className="progTop">
-              <div className="progTxt">업로드 {progressNow}/{progressTotal}</div>
-              <div className="progTxt2">{step || "처리 중…"}</div>
-            </div>
-            <div className="bar">
-              <div className="barIn" style={{ width: `${progressRatio * 100}%` }} />
-            </div>
-          </div>
-        ) : null}
-      </>
-) : null}
-
-  </div>
-
-                      {/* 썸네일 + +N */}
-                      {Array.isArray(c.image_urls) && c.image_urls.length ? (
-                        <div className="thumbGrid">
-                          {(() => {
-                            const urls = c.image_urls!;
-                            const MAX = 4;
-                            const hasMore = urls.length > MAX;
-                            const tileUrls = hasMore ? urls.slice(0, MAX) : urls.slice(0, Math.min(urls.length, MAX));
-                            const moreCount = hasMore ? urls.length - (MAX - 1) : 0;
-
-                            return tileUrls.map((u, i) => {
-                              const isMoreTile = hasMore && i === MAX - 1;
-                              return (
-                                <button
-                                  type="button"
-                                  className={`thumb ${isMoreTile ? "more" : ""}`}
-                                  key={`${u}-${i}`}
-                                  onClick={() => openViewer(u)}
-                                  aria-label="이미지 크게 보기"
-                                >
-                                  <img src={u} alt="" loading="lazy" />
-                                  {isMoreTile ? <span className="moreBadge">+{moreCount}</span> : null}
-                                </button>
-                              );
-                            });
-                          })()}
-                        </div>
-                      ) : null}
-
-                      {/* ✅ 답글 영역 */}
-                      <div className="replies">
-
-                       {/* ✅ 답글 리스트: 있을 때만 보여줌 (빈문구 제거) */}
-{(repliesByComment[c.id]?.length ?? 0) > 0 ? (
-  <div className="replyList">
-    {repliesByComment[c.id].map((r) => {
-      const isEditing = editingReplyId === r.id;
-      const canManage = isAdmin || !!verifiedReplyIds[r.id];
-      const isDeleteOpen =
-        deleteReplyUi?.commentId === c.id && deleteReplyUi?.replyId === r.id;
+  <div className="empty">아직 댓글이 없어요.</div>
+) : (
+  <div className="list">
+    {comments.map((c) => {
+      const likes = c.likes_count ?? 0;
+      const isBest = bestLikes >= 1 && likes === bestLikes;
 
       return (
-        <div className={`replyItem ${isEditing ? "editing" : ""}`} key={r.id}>
-          <div className="replyRow">
-            <div className="replyAvatar" aria-hidden="true">
-              {r.avatar ?? "🙂"}
-            </div>
-
-            <div className="replyMeta">
-              <div className="replyNameLine">
-                <span className="replyName">{r.name}</span>
-                <span className="replyTime">{new Date(r.created_at).toLocaleString()}</span>
+        <div className={`item ${isBest ? "best" : ""}`} key={c.id}>
+          <div className="headRow">
+            <div className="left">
+              <div className="avatar" aria-hidden="true">
+                {c.avatar ?? "🙂"}
               </div>
 
-              {!isEditing ? (
-                <div className="replyText">{r.content}</div>
-              ) : (
-                <>
-                  <textarea
-                    className="replyEditTa"
-                    value={editReplyText}
-                    onChange={(e) => setEditReplyText(e.target.value)}
-                    placeholder="수정 내용을 입력하세요"
-                  />
+              <div className="meta">
+                <div className="nameLine">
+                  <span className="name">{c.name}</span>
+                  {isBest ? <span className="bestBadge">BEST</span> : null}
+                  <span className="time">{new Date(c.created_at).toLocaleString()}</span>
+                </div>
 
+                {editingId !== c.id ? <div className="cBody">{c.content}</div> : null}
+              </div>
+            </div>
+
+            <div className="actions">
+              <button
+                className="aBtn like"
+                type="button"
+                onClick={() => likeComment(c.id)}
+                disabled={busyId === c.id || uploading || submitting}
+              >
+                👍 <span className="likeNum">{likes}</span>
+              </button>
+
+              <button
+                className="aBtn"
+                type="button"
+                onClick={() => setOpenReplyFor(openReplyFor === c.id ? null : c.id)}
+              >
+                {openReplyFor === c.id ? "답글닫기" : "답글달기"}
+              </button>
+
+              <button className="aBtn" type="button" onClick={() => startEdit(c)} disabled={busyId === c.id}>
+                수정
+              </button>
+
+              <button className="aBtn danger" type="button" onClick={() => deleteComment(c.id)} disabled={busyId === c.id}>
+                삭제
+              </button>
+            </div>
+          </div>
+
+          <div className="textWrap">
+            {editingId === c.id ? (
+              <>
+                <textarea
+                  className="editTa"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  placeholder="수정 내용을 입력하세요"
+                />
+
+                {editKeepUrls.length ? (
+                  <div className="editImgs">
+                    {editKeepUrls.map((u) => (
+                      <button type="button" className="keep" key={u} onClick={() => removeKeepUrl(u)} title="클릭하면 삭제(제외)">
+                        <img src={u} alt="" />
+                        <span className="keepX">×</span>
+                      </button>
+                    ))}
+                    <div className="hint">유지할 이미지만 남기고, 삭제할 건 클릭해서 빼면 돼</div>
+                  </div>
+                ) : null}
+
+                <div className="editAdd">
+                  <input
+                    ref={editFileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: "none" }}
+                    onChange={(e) => onPickEditFiles(e.target.files)}
+                    disabled={busyId === c.id || uploading}
+                  />
+                  <button type="button" className="btn ghost" onClick={() => editFileRef.current?.click()} disabled={busyId === c.id || uploading}>
+                    이미지 추가
+                  </button>
+
+                  {editPreviews.length ? (
+                    <div className="pickWrap">
+                      {editPreviews.map((src, idx) => (
+                        <div className="pick" key={`${src}-${idx}`}>
+                          <img src={src} alt="" />
+                          <button type="button" className="x" onClick={() => removeEditFile(idx)} aria-label="삭제">
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="editBar">
                   {!isAdmin ? (
                     <input
-                      className="replyPwIn"
-                      value={editReplyPw}
-                      onChange={(e) => setEditReplyPw(e.target.value)}
-                      placeholder="비밀번호(4자+) 입력 후 저장"
+                      className="pwIn"
+                      value={editPw}
+                      onChange={(e) => setEditPw(e.target.value)}
+                      placeholder="작성자 비밀번호 (4자+)"
                       type="password"
                     />
                   ) : (
                     <div className="adminChip">관리자</div>
                   )}
 
-                  <div className="replyActions">
-                    <button className="aBtn" type="button" onClick={() => saveReply(c.id, r.id)}>
+                  <div className="editBtns">
+                    <button className="btn" onClick={() => saveEdit(c.id)} disabled={busyId === c.id || uploading}>
                       저장
                     </button>
-                    <button className="aBtn" type="button" onClick={cancelEditReply}>
+                    <button className="btn ghost" onClick={cancelEdit} disabled={busyId === c.id || uploading}>
                       취소
                     </button>
                   </div>
-                </>
-              )}
-            </div>
+                </div>
 
-            {/* ✅ 오른쪽 버튼들 */}
-            {!isEditing ? (
-              <div className="replyActions">
-                {canManage ? (
-                  <>
-                    <button className="aBtn" type="button" onClick={() => startEditReply(r)}>
-                      수정
-                    </button>
-                    <button
-                      className="aBtn danger"
-                      type="button"
-                      onClick={() => openDeleteReply(c.id, r.id)}
-                    >
-                      삭제
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    className="aBtn"
-                    type="button"
-                    onClick={() => {
-                      setVerifyReplyId(r.id);
-                      setVerifyPw("");
-                    }}
-                  >
-                    본인확인
-                  </button>
-                )}
-              </div>
+                {uploading || (progressTotal > 0 && progressNow > 0) ? (
+                  <div className="prog">
+                    <div className="progTop">
+                      <div className="progTxt">업로드 {progressNow}/{progressTotal}</div>
+                      <div className="progTxt2">{step || "처리 중…"}</div>
+                    </div>
+                    <div className="bar">
+                      <div className="barIn" style={{ width: `${progressRatio * 100}%` }} />
+                    </div>
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
 
-          {/* ✅ 본인확인 인라인 */}
-          {!isAdmin && verifyReplyId === r.id && !canManage && !isEditing ? (
-            <div className="replyVerify">
-              <input
-                className="replyPwIn"
-                type="password"
-                value={verifyPw}
-                onChange={(e) => setVerifyPw(e.target.value)}
-                placeholder="비밀번호(4자+)"
-              />
-              <button className="btn primary" type="button" onClick={() => verifyReply(c.id, r.id)}>
-                확인
-              </button>
-              <button
-                className="btn ghost"
-                type="button"
-                onClick={() => {
-                  setVerifyReplyId(null);
-                  setVerifyPw("");
-                }}
-              >
-                취소
-              </button>
+          {Array.isArray(c.image_urls) && c.image_urls.length ? (
+            <div className="thumbGrid">
+              {(() => {
+                const urls = c.image_urls!;
+                const MAX = 4;
+                const hasMore = urls.length > MAX;
+                const tileUrls = hasMore ? urls.slice(0, MAX) : urls.slice(0, Math.min(urls.length, MAX));
+                const moreCount = hasMore ? urls.length - (MAX - 1) : 0;
+
+                return tileUrls.map((u, i) => {
+                  const isMoreTile = hasMore && i === MAX - 1;
+                  return (
+                    <button
+                      type="button"
+                      className={`thumb ${isMoreTile ? "more" : ""}`}
+                      key={`${u}-${i}`}
+                      onClick={() => openViewer(u)}
+                      aria-label="이미지 크게 보기"
+                    >
+                      <img src={u} alt="" loading="lazy" />
+                      {isMoreTile ? <span className="moreBadge">+{moreCount}</span> : null}
+                    </button>
+                  );
+                });
+              })()}
             </div>
           ) : null}
 
-          {/* ✅ 삭제 인라인 */}
-          {isDeleteOpen && !isAdmin ? (
-            <div className="replyVerify">
-              <input
-                className="replyPwIn"
-                type="password"
-                value={deleteReplyUi?.pw ?? ""}
-                onChange={(e) =>
-                  setDeleteReplyUi((prev) => (prev ? { ...prev, pw: e.target.value } : prev))
-                }
-                placeholder="비밀번호(4자+)"
-              />
-              <button
-                className="btn primary"
-                type="button"
-                onClick={() => deleteReply(c.id, r.id, deleteReplyUi?.pw ?? "")}
-              >
-                삭제 확인
-              </button>
-              <button className="btn ghost" type="button" onClick={closeDeleteReply}>
-                취소
-              </button>
-            </div>
-          ) : null}
-        </div>
-      );
-    })}
-  </div>
-) : null}
+          <div className="replies">
+            {(repliesByComment[c.id]?.length ?? 0) > 0 ? (
+              <div className="replyList">
+                {repliesByComment[c.id].map((r) => {
+                  const isEditing = editingReplyId === r.id;
+                  const canManage = isAdmin || !!verifiedReplyIds[r.id];
+                  const isDeleteOpen = deleteReplyUi?.commentId === c.id && deleteReplyUi?.replyId === r.id;
 
-                        {/* ✅ 답글 작성 폼 */}
-                        {openReplyFor === c.id ? (
-                          <div className="replyForm">
-                            <div className="rTop">
-                              <div className="fField">
-                                <label>답글 닉네임</label>
+                  return (
+                    <div className={`replyItem ${isEditing ? "editing" : ""}`} key={r.id}>
+                      <div className="replyRow">
+                        <div className="replyAvatar" aria-hidden="true">
+                          {r.avatar ?? "🙂"}
+                        </div>
+
+                        <div className="replyMeta">
+                          <div className="replyNameLine">
+                            <span className="replyName">{r.name}</span>
+                            <span className="replyTime">{new Date(r.created_at).toLocaleString()}</span>
+                          </div>
+
+                          {!isEditing ? (
+                            <div className="replyText">{r.content}</div>
+                          ) : (
+                            <>
+                              <textarea
+                                className="replyEditTa"
+                                value={editReplyText}
+                                onChange={(e) => setEditReplyText(e.target.value)}
+                                placeholder="수정 내용을 입력하세요"
+                              />
+
+                              {!isAdmin ? (
                                 <input
-                                  className="in"
-                                  value={rName}
-                                  onChange={(e) => setRName(e.target.value)}
-                                  placeholder="예) 약속"
-                                />
-                              </div>
-
-                              <div className="fField">
-                                <label>프로필</label>
-                                <select className="in" value={rAvatar} onChange={(e) => setRAvatar(e.target.value)}>
-                                  {["🙂", "😎", "🐰", "🐻", "🦊", "🐱", "✨"].map((a) => (
-                                    <option key={a} value={a}>
-                                      {a}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-
-                              <div className="fField">
-                                <label>비밀번호 (수정/삭제)</label>
-                                <input
-                                  className="in"
-                                  value={rPw}
-                                  onChange={(e) => setRPw(e.target.value)}
-                                  placeholder="4자 이상"
+                                  className="replyPwIn"
+                                  value={editReplyPw}
+                                  onChange={(e) => setEditReplyPw(e.target.value)}
+                                  placeholder="비밀번호(4자+) 입력 후 저장"
                                   type="password"
-                                  disabled={isAdmin}
                                 />
-                              </div>
+                              ) : (
+                                <div className="adminChip">관리자</div>
+                              )}
 
-                              <div className="fField">
-                                <label>등록</label>
-                                <button className="btn primary" type="button" onClick={() => submitReply(c.id)}>
-                                  답글 등록
+                              <div className="replyActions">
+                                <button className="aBtn" type="button" onClick={() => saveReply(c.id, r.id)}>
+                                  저장
+                                </button>
+                                <button className="aBtn" type="button" onClick={cancelEditReply}>
+                                  취소
                                 </button>
                               </div>
-                            </div>
+                            </>
+                          )}
+                        </div>
 
-                            <div className="fField full">
-                              <label>내용</label>
-                              <textarea
-                                className="ta"
-                                value={rContent}
-                                onChange={(e) => setRContent(e.target.value)}
-                                placeholder="답글을 남겨주세요"
-                              />
-                            </div>
+                        {!isEditing ? (
+                          <div className="replyActions">
+                            {canManage ? (
+                              <>
+                                <button className="aBtn" type="button" onClick={() => startEditReply(r)}>
+                                  수정
+                                </button>
+                                <button className="aBtn danger" type="button" onClick={() => openDeleteReply(c.id, r.id)}>
+                                  삭제
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                className="aBtn"
+                                type="button"
+                                onClick={() => {
+                                  setVerifyReplyId(r.id);
+                                  setVerifyPw("");
+                                }}
+                              >
+                                본인확인
+                              </button>
+                            )}
                           </div>
                         ) : null}
                       </div>
 
-                    </div>
-                  ))}
-                </div>
-              )}
+                      {!isAdmin && verifyReplyId === r.id && !canManage && !isEditing ? (
+                        <div className="replyVerify">
+                          <input
+                            className="replyPwIn"
+                            type="password"
+                            value={verifyPw}
+                            onChange={(e) => setVerifyPw(e.target.value)}
+                            placeholder="비밀번호(4자+)"
+                          />
+                          <button className="btn primary" type="button" onClick={() => verifyReply(c.id, r.id)}>
+                            확인
+                          </button>
+                          <button
+                            className="btn ghost"
+                            type="button"
+                            onClick={() => {
+                              setVerifyReplyId(null);
+                              setVerifyPw("");
+                            }}
+                          >
+                            취소
+                          </button>
+                        </div>
+                      ) : null}
 
+                      {isDeleteOpen && !isAdmin ? (
+                        <div className="replyVerify">
+                          <input
+                            className="replyPwIn"
+                            type="password"
+                            value={deleteReplyUi?.pw ?? ""}
+                            onChange={(e) => setDeleteReplyUi((prev) => (prev ? { ...prev, pw: e.target.value } : prev))}
+                            placeholder="비밀번호(4자+)"
+                          />
+                          <button className="btn primary" type="button" onClick={() => deleteReply(c.id, r.id, deleteReplyUi?.pw ?? "")}>
+                            삭제 확인
+                          </button>
+                          <button className="btn ghost" type="button" onClick={closeDeleteReply}>
+                            취소
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {openReplyFor === c.id ? (
+              <div className="replyForm">
+                <div className="rTop">
+                  <div className="fField">
+                    <label>답글 닉네임</label>
+                    <input className="in" value={rName} onChange={(e) => setRName(e.target.value)} placeholder="예) 약속" />
+                  </div>
+
+                  <div className="fField">
+                    <label>프로필</label>
+                    <select className="in" value={rAvatar} onChange={(e) => setRAvatar(e.target.value)}>
+                      {["🙂", "😎", "🐰", "🐻", "🦊", "🐱", "✨"].map((a) => (
+                        <option key={a} value={a}>
+                          {a}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="fField">
+                    <label>비밀번호 (수정/삭제)</label>
+                    <input
+                      className="in"
+                      value={rPw}
+                      onChange={(e) => setRPw(e.target.value)}
+                      placeholder="4자 이상"
+                      type="password"
+                      disabled={isAdmin}
+                    />
+                  </div>
+
+                  <div className="fField">
+                    <label>등록</label>
+                    <button className="btn primary" type="button" onClick={() => submitReply(c.id)}>
+                      답글 등록
+                    </button>
+                  </div>
+                </div>
+
+                <div className="fField full">
+                  <label>내용</label>
+                  <textarea className="ta" value={rContent} onChange={(e) => setRContent(e.target.value)} placeholder="답글을 남겨주세요" />
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
               {/* 작성폼 */}
               <div className="form">
                 <div className="fTop">
@@ -1258,6 +1265,65 @@ useEffect(() => {
 }
 
 const css = `
+
+:root{
+  --pt:#f59e0b;          /* 포인트 골드 */
+  --pt2:#fff7ed;         /* 연한 포인트 배경 */
+  --ptLine: rgba(245,158,11,.35);
+}
+
+/* ✅ 추천 버튼 */
+.aBtn.like{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:0;
+  color:#111827;
+  font-weight:800;
+}
+.likeNum{
+  font-weight:900;
+  color: #6b7280;
+}
+
+/* ✅ 베스트 강조 */
+.item.best{
+  position:relative;
+  padding-top:22px; /* 배지 공간 */
+}
+
+.item.best::before{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  top:10px;
+  bottom:10px;
+  border-radius:14px;
+  background: linear-gradient(180deg, var(--pt2), #fff);
+  border:1px solid var(--ptLine);
+  pointer-events:none;
+}
+
+/* item 내부 내용이 ::before 위로 오도록 */
+.item.best > *{
+  position:relative;
+  z-index:1;
+}
+
+/* BEST 배지 */
+.bestBadge{
+  margin-left:8px;
+  font-size:11px;
+  font-weight:900;
+  padding:4px 8px;
+  border-radius:999px;
+  background: rgba(245,158,11,.16);
+  border:1px solid rgba(245,158,11,.35);
+  color:#92400e;
+  letter-spacing:.02em;
+}
+
 *, *:before, *:after { box-sizing: border-box; }
 .bd{ min-height:100vh; background:#fff; color:#111827; }
 .wrap{ max-width:980px; margin:0 auto; padding:16px 16px 60px; }
@@ -1312,7 +1378,26 @@ const css = `
 .muted{ color:#6b7280; }
 .attach{ margin-top:12px; display:grid; grid-template-columns:1fr; gap:10px; }
 .imgBtn{ border:0; background:transparent; padding:0; cursor:zoom-in; }
-.imgBtn img{ width:100%; border-radius:12px; display:block; object-fit:contain; max-height:720px; }
+
+/* ✅ 원본 크기 유지 + 화면/게시글 폭보다 크면 자동 축소 */
+.imgBtn{
+  border:0;
+  background:transparent;
+  padding:0;
+  cursor:zoom-in;
+  display:flex;
+  justify-content:center; /* ✅ 작은 이미지는 가운데 */
+}
+
+.imgBtn img{
+  width:auto;            /* ✅ 강제 확대 금지 */
+  height:auto;
+  max-width:100%;        /* ✅ 게시글 폭 넘으면 자동 축소 */
+  max-height:720px;      /* ✅ 너무 큰 세로도 제한 */
+  border-radius:12px;
+  display:block;
+  object-fit:contain;
+}
 
 .cm{
   border-top:1px solid #eef2f7;
@@ -1537,7 +1622,17 @@ const css = `
 .viewerInner{ width:min(980px,96vw); max-height:90vh; background:#fff; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
 .viewerClose{ height:46px; padding:0 14px; border:0; border-bottom:1px solid #eef2f7; background:#fff; cursor:pointer; font-weight:700; font-size:13px; text-align:left; }
 .viewerImg{ padding:12px; overflow:auto; }
-.viewerImg img{ width:100%; height:auto; max-height:76vh; object-fit:contain; display:block; }
+
+.viewerImg{ padding:12px; overflow:auto; text-align:center; }
+
+.viewerImg img{
+  width:auto;           /* ✅ 뷰어에서도 강제 확대 금지 */
+  height:auto;
+  max-width:100%;
+  max-height:76vh;
+  object-fit:contain;
+  display:inline-block;
+}
 
 /* =========================
    ✅ 답글 UI
