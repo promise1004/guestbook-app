@@ -47,22 +47,38 @@ export default function ProfilesPage() {
     load();
   }, []);
 
-    // ✅ (추가) embed=1 상태에서 "새로고침(F5)"으로 목록이 열리면
-  // 마지막으로 보던 상세 페이지로 자동 복귀
-  useEffect(() => {
-    const embed = sp.get("embed") === "1";
-    if (!embed) return;
+useEffect(() => {
+  const embed = sp.get("embed") === "1";
+  const resumeOff = sp.get("resume") === "0";
+  if (resumeOff) return;
 
-    // ✅ 새로고침인 경우에만 동작 (일반 진입/뒤로가기 방해 X)
-    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    const isReload = nav?.type === "reload";
-    if (!isReload) return;
+  // ✅ iframe(페이지24)에서도 동작 가능하게
+  const inIframe = (() => {
+    try { return window.self !== window.top; } catch { return true; }
+  })();
 
+  // ✅ embed=1 또는 iframe일 때만 복귀 시도
+  if (!embed && !inIframe) return;
+
+  // ✅ last id 읽기 (localStorage → sessionStorage → window.name)
+  let last = "";
+  try { last = localStorage.getItem("profiles_last_open") || ""; } catch {}
+  if (!last) { try { last = sessionStorage.getItem("profiles_last_open") || ""; } catch {} }
+  if (!last) {
     try {
-      const last = localStorage.getItem("profiles_last_open");
-      if (last) router.replace(`/profiles/${last}?embed=1`);
+      const m = String(window.name || "");
+      if (m.startsWith("profiles_last_open:")) last = m.slice("profiles_last_open:".length);
     } catch {}
-  }, [router, sp]);
+  }
+  if (!last) return;
+
+  const t = setTimeout(() => {
+    router.replace(`/profiles/${last}?embed=1`);
+  }, 30);
+
+  return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [router, sp]);
 
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
