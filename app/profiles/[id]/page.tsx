@@ -87,16 +87,6 @@ const id = typeof (params as any)?.id === "string" ? (params as any).id : undefi
 const sp = useSearchParams();
 const embed = sp.get("embed") === "1";
 
-useEffect(() => {
-  if (!id) return;
-
-  // ✅ iframe(embed)에서 상세 URL로 들어오면
-  //    목록 URL로 바꿔서 "open" 상태로만 표현
-  if (embed) {
-    router.replace(`/profiles?embed=1&open=${id}`);
-  }
-}, [embed, id, router]);
-
   // ✅ 댓글 '달린 순서' 고정(처음 본 순서 그대로 유지)
 const orderRef = useRef<string[]>([]);
 
@@ -1150,7 +1140,7 @@ const featuredComments = useMemo(() => {
     <main className="bd">
       <div className="wrap">
         <div className="top">
-          
+
 <a className="link" href={embed ? "/profiles?embed=1" : "/profiles"}>← 목록으로</a>
 
           <div className="topRight">
