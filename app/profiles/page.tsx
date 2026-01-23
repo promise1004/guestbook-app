@@ -1,7 +1,7 @@
 // app/profiles/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type Post = {
@@ -14,8 +14,18 @@ type Post = {
   created_at: string;
 };
 
-export default function ProfilesPage() {
-    const router = useRouter();
+// ✅ 1) default export는 Suspense로 감싸는 Wrapper로!
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <ProfilesPage />
+    </Suspense>
+  );
+}
+
+// ✅ 2) 여기서 useSearchParams / useRouter 사용
+function ProfilesPage() {
+  const router = useRouter();
   const sp = useSearchParams();
 
   const [posts, setPosts] = useState<Post[]>([]);
@@ -47,38 +57,38 @@ export default function ProfilesPage() {
     load();
   }, []);
 
-useEffect(() => {
-  const embed = sp.get("embed") === "1";
-  const resumeOff = sp.get("resume") === "0";
-  if (resumeOff) return;
+  // ✅ 너가 추가한 “F5 복귀 로직”도 여기 그대로 둬도 됨
+  useEffect(() => {
+    const embed = sp.get("embed") === "1";
+    if (!embed) return;
 
-  // ✅ iframe(페이지24)에서도 동작 가능하게
-  const inIframe = (() => {
-    try { return window.self !== window.top; } catch { return true; }
-  })();
+    const resumeOff = sp.get("resume") === "0";
+    if (resumeOff) return;
 
-  // ✅ embed=1 또는 iframe일 때만 복귀 시도
-  if (!embed && !inIframe) return;
+    const inIframe = (() => {
+      try { return window.self !== window.top; } catch { return true; }
+    })();
 
-  // ✅ last id 읽기 (localStorage → sessionStorage → window.name)
-  let last = "";
-  try { last = localStorage.getItem("profiles_last_open") || ""; } catch {}
-  if (!last) { try { last = sessionStorage.getItem("profiles_last_open") || ""; } catch {} }
-  if (!last) {
-    try {
-      const m = String(window.name || "");
-      if (m.startsWith("profiles_last_open:")) last = m.slice("profiles_last_open:".length);
-    } catch {}
-  }
-  if (!last) return;
+    if (!inIframe && !embed) return;
 
-  const t = setTimeout(() => {
-    router.replace(`/profiles/${last}?embed=1`);
-  }, 30);
+    let last = "";
+    try { last = localStorage.getItem("profiles_last_open") || ""; } catch {}
+    if (!last) { try { last = sessionStorage.getItem("profiles_last_open") || ""; } catch {} }
+    if (!last) {
+      try {
+        const m = String(window.name || "");
+        if (m.startsWith("profiles_last_open:")) last = m.slice("profiles_last_open:".length);
+      } catch {}
+    }
 
-  return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [router, sp]);
+    if (!last) return;
+
+    const t = setTimeout(() => {
+      router.replace(`/profiles/${last}?embed=1`);
+    }, 30);
+
+    return () => clearTimeout(t);
+  }, [router, sp]);
 
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
