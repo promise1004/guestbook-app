@@ -16,6 +16,8 @@ type Post = {
   created_at: string;
 };
 
+type ProfileListItem = Post & { comment_count?: number | null };
+
 type Reply = {
   id: string;
   comment_id: string;
@@ -48,6 +50,10 @@ const id = typeof (params as any)?.id === "string" ? (params as any).id : undefi
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string>("");
+
+    // ✅ 아래 미리보기용 멤버 목록
+  const [memberPreview, setMemberPreview] = useState<ProfileListItem[]>([]);
+  const [memberLoading, setMemberLoading] = useState(false);
 
   // ✅ 관리자 모드 토글 + 키
   const [adminOn, setAdminOn] = useState(false);
@@ -274,6 +280,21 @@ useEffect(() => {
     }
   }
 
+    async function loadMemberPreview() {
+    setMemberLoading(true);
+    try {
+      const res = await fetch("/api/profiles", { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      const all: ProfileListItem[] = json?.posts ?? [];
+
+      // ✅ 현재 보고 있는 상세(id)는 제외하고 6개만
+      const list = all.filter((p) => p.id !== id).slice(0, 6);
+      setMemberPreview(list);
+    } finally {
+      setMemberLoading(false);
+    }
+  }
+
   async function refresh() {
     setRefreshing(true);
     try {
@@ -285,6 +306,7 @@ useEffect(() => {
 
   useEffect(() => {
     loadAll();
+    loadMemberPreview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -305,6 +327,26 @@ useEffect(() => {
     }
     return out;
   }, [post]);
+
+  // ✅ 원본 리스트는 '작성시간' 기준으로 고정 (좋아요로 순서 바뀌지 않게)
+const orderedComments = useMemo(() => {
+  return [...(comments ?? [])].sort((a, b) => {
+    // ✅ 오래된 댓글이 위로 (오름차순)
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
+}, [comments]);
+
+const bestLikes = useMemo(() => {
+  let mx = 0;
+  for (const c of orderedComments) mx = Math.max(mx, c.likes_count ?? 0);
+  return mx;
+}, [orderedComments]);
+
+const featuredComments = useMemo(() => {
+  const mx = bestLikes;
+  if (mx < 1) return [];
+  return orderedComments.filter((c) => (c.likes_count ?? 0) === mx);
+}, [orderedComments, bestLikes]);
 
 function renderComment(c: Comment, keyPrefix = "") {
   const likes = c.likes_count ?? 0;
@@ -1133,26 +1175,6 @@ async function likeComment(commentId: string) {
     }
   }
 
-// ✅ 원본 리스트는 '작성시간' 기준으로 고정 (좋아요로 순서 바뀌지 않게)
-const orderedComments = useMemo(() => {
-  return [...(comments ?? [])].sort((a, b) => {
-    // ✅ 오래된 댓글이 위로 (오름차순)
-    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-  });
-}, [comments]);
-
-const bestLikes = useMemo(() => {
-  let mx = 0;
-  for (const c of orderedComments) mx = Math.max(mx, c.likes_count ?? 0);
-  return mx;
-}, [orderedComments]);
-
-const featuredComments = useMemo(() => {
-  const mx = bestLikes;
-  if (mx < 1) return [];
-  return orderedComments.filter((c) => (c.likes_count ?? 0) === mx);
-}, [orderedComments, bestLikes]);
-
   const progressRatio =
     progressTotal > 0 ? Math.min(1, Math.max(0, progressNow / progressTotal)) : 0;
 
@@ -1189,149 +1211,228 @@ const featuredComments = useMemo(() => {
           </div>
         </div>
 
-        {loading ? (
+                {loading ? (
           <div className="box state">불러오는 중…</div>
         ) : loadError ? (
           <div className="box state">⚠️ {loadError}</div>
         ) : !post ? (
           <div className="box state">존재하지 않는 프로필이에요.</div>
         ) : (
-          <article className="box post">
-            <header className="postHead">
-              <div className="kicker">PROFILE</div>
-              <h1 className="title">{post.title}</h1>
-              <div className="info">
-                {post.role ? <span className="tag">{post.role}</span> : null}
-                <span className="sep">·</span>
-                <span className="date">{new Date(post.created_at).toLocaleDateString()}</span>
-              </div>
-            </header>
-
-            <section className="postBody">
-              <div className="content">
-                {post.bio ? <p className="p">{post.bio}</p> : <p className="p muted">소개가 비어있어요.</p>}
-              </div>
-
-              {images.length ? (
-                <div className="attach">
-                  {images.map((src, idx) => (
-                    <button type="button" className="imgBtn" key={`${src}-${idx}`} onClick={() => openViewer(src)}>
-                      <img src={src} alt="" loading="lazy" />
-                    </button>
-                  ))}
+          <>
+            <article className="box post">
+              <header className="postHead">
+                <div className="kicker">PROFILE</div>
+                <h1 className="title">{post.title}</h1>
+                <div className="info">
+                  {post.role ? <span className="tag">{post.role}</span> : null}
+                  <span className="sep">·</span>
+                  <span className="date">{new Date(post.created_at).toLocaleDateString()}</span>
                 </div>
-              ) : null}
-            </section>
+              </header>
 
-            <section className="cm">
-              <div className="cmHead">
-                <h2 className="cmTitle">댓글</h2>
-              </div>
+              <section className="postBody">
+                <div className="content">
+                  {post.bio ? <p className="p">{post.bio}</p> : <p className="p muted">소개가 비어있어요.</p>}
+                </div>
 
-              {comments.length === 0 ? (
-  <div className="empty">아직 댓글이 없어요.</div>
-) : (
+                {images.length ? (
+                  <div className="attach">
+                    {images.map((src, idx) => (
+                      <button type="button" className="imgBtn" key={`${src}-${idx}`} onClick={() => openViewer(src)}>
+                        <img src={src} alt="" loading="lazy" />
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
 
-<div className="list">
-  {featuredComments.length ? (
-    <div className="featuredBox">
-      {featuredComments.map((c) => renderComment(c, "featured-"))}
-    </div>
-  ) : null}
+              <section className="cm">
+                <div className="cmHead">
+                  <h2 className="cmTitle">댓글</h2>
+                </div>
 
-  {orderedComments.map((c) => renderComment(c))}
-</div>
-)}
-              {/* 작성폼 */}
-              <div className="form">
-                <div className="fTop">
-                  <div className="fField">
-                    <label>닉네임</label>
-                    <input className="in" value={name} onChange={(e) => setName(e.target.value)} placeholder="예) 약속" disabled={submitting || uploading} />
+                {comments.length === 0 ? (
+                  <div className="empty">아직 댓글이 없어요.</div>
+                ) : (
+                  <div className="list">
+                    {featuredComments.length ? (
+                      <div className="featuredBox">
+                        {featuredComments.map((c) => renderComment(c, "featured-"))}
+                      </div>
+                    ) : null}
+
+                    {orderedComments.map((c) => renderComment(c))}
+                  </div>
+                )}
+
+                {/* 작성폼 */}
+                <div className="form">
+                  <div className="fTop">
+                    <div className="fField">
+                      <label>닉네임</label>
+                      <input
+                        className="in"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="예) 약속"
+                        disabled={submitting || uploading}
+                      />
+                    </div>
+
+                    <div className="fField">
+                      <label>프로필</label>
+                      <select
+                        className="in"
+                        value={avatar}
+                        onChange={(e) => setAvatar(e.target.value)}
+                        disabled={submitting || uploading}
+                      >
+                        {["🙂", "😎", "🐰", "🐻", "🦊", "🐱", "✨"].map((a) => (
+                          <option key={a} value={a}>
+                            {a}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="fField">
+                      <label>비밀번호 (수정/삭제)</label>
+                      <input
+                        className="in"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="4자 이상"
+                        type="password"
+                        disabled={submitting || uploading || (adminOn && adminKey.trim().length > 0)}
+                      />
+                    </div>
+
+                    <div className="fField">
+                      <label>사진 첨부</label>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        style={{ display: "none" }}
+                        onChange={(e) => onPickFiles(e.target.files)}
+                        disabled={submitting || uploading}
+                      />
+                      <button
+                        className="btn ghost"
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={submitting || uploading}
+                      >
+                        사진첨부
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="fField">
-  <label>프로필</label>
-  <select
-    className="in"
-    value={avatar}
-    onChange={(e) => setAvatar(e.target.value)}
-    disabled={submitting || uploading}
-  >
-    {["🙂", "😎", "🐰", "🐻", "🦊", "🐱", "✨"].map((a) => (
-      <option key={a} value={a}>{a}</option>
-    ))}
-  </select>
-</div>
+                  {previews.length ? (
+                    <div className="pickWrap">
+                      {previews.map((src, idx) => (
+                        <div className="pick" key={`${src}-${idx}`}>
+                          <img src={src} alt="" />
+                          <button
+                            type="button"
+                            className="x"
+                            onClick={() => removeFile(idx)}
+                            aria-label="삭제"
+                            disabled={submitting || uploading}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      <div className="pickHint">최대 6장</div>
+                    </div>
+                  ) : null}
 
-                  <div className="fField">
-                    <label>비밀번호 (수정/삭제)</label>
-                    <input
-                      className="in"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="4자 이상"
-                      type="password"
-                      disabled={submitting || uploading || (adminOn && adminKey.trim().length > 0)}
-                    />
-                  </div>
-
-                  <div className="fField">
-                    <label>사진 첨부</label>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      style={{ display: "none" }}
-                      onChange={(e) => onPickFiles(e.target.files)}
+                  <div className="fField full">
+                    <label>내용</label>
+                    <textarea
+                      className="ta"
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      placeholder="테스트"
                       disabled={submitting || uploading}
                     />
-                    <button className="btn ghost" type="button" onClick={() => fileRef.current?.click()} disabled={submitting || uploading}>
-                      사진첨부
+                  </div>
+
+                  {uploading || (progressTotal > 0 && progressNow > 0) ? (
+                    <div className="prog">
+                      <div className="progTop">
+                        <div className="progTxt">
+                          업로드 {progressNow}/{progressTotal}
+                        </div>
+                        <div className="progTxt2">{step || "처리 중…"}</div>
+                      </div>
+                      <div className="bar">
+                        <div className="barIn" style={{ width: `${progressRatio * 100}%` }} />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="fBottom">
+                    <button className="btn primary" onClick={submitComment} disabled={submitting || uploading}>
+                      {uploading ? "업로드 중…" : submitting ? "등록 중…" : "등록"}
                     </button>
                   </div>
                 </div>
+              </section>
+            </article>
 
-                {previews.length ? (
-                  <div className="pickWrap">
-                    {previews.map((src, idx) => (
-                      <div className="pick" key={`${src}-${idx}`}>
-                        <img src={src} alt="" />
-                        <button type="button" className="x" onClick={() => removeFile(idx)} aria-label="삭제" disabled={submitting || uploading}>
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                    <div className="pickHint">최대 6장</div>
-                  </div>
-                ) : null}
-
-                <div className="fField full">
-                  <label>내용</label>
-                  <textarea className="ta" value={content} onChange={(e) => setContent(e.target.value)} placeholder="테스트" disabled={submitting || uploading} />
+            {/* ✅ 멤버 프로필 미리보기 (댓글 아래, 별도 섹션) */}
+            <section className="mp">
+              <div className="mpHead">
+                <div>
+                  <div className="mpKicker">PROMISE</div>
+                  <h3 className="mpTitle">멤버 프로필 더 보기</h3>
+                  <p className="mpSub">다른 멤버들도 둘러보세요 🙂</p>
                 </div>
 
-                {(uploading || (progressTotal > 0 && progressNow > 0)) ? (
-                  <div className="prog">
-                    <div className="progTop">
-                      <div className="progTxt">업로드 {progressNow}/{progressTotal}</div>
-                      <div className="progTxt2">{step || "처리 중…"}</div>
-                    </div>
-                    <div className="bar">
-                      <div className="barIn" style={{ width: `${progressRatio * 100}%` }} />
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="fBottom">
-                  <button className="btn primary" onClick={submitComment} disabled={submitting || uploading}>
-                    {uploading ? "업로드 중…" : submitting ? "등록 중…" : "등록"}
-                  </button>
-                </div>
+                <a className="mpAll" href={embed ? "/profiles?embed=1" : "/profiles"}>
+                  전체 보기 →
+                </a>
               </div>
+
+              {memberLoading ? (
+                <div className="mpState">불러오는 중…</div>
+              ) : memberPreview.length === 0 ? (
+                <div className="mpState">표시할 멤버가 없어요.</div>
+              ) : (
+                <div className="mpGrid">
+                  {memberPreview.map((p) => (
+                    <a
+                      key={p.id}
+                      className="mpCard"
+                      href={embed ? `/profiles/${p.id}?embed=1` : `/profiles/${p.id}`}
+                    >
+                      <div className="mpThumb">
+                        {p.cover_url ? <img src={p.cover_url} alt="" /> : <div className="mpPh">🙂</div>}
+                      </div>
+
+                      <div className="mpBody">
+                        <div className="mpTop">
+                          <div className="mpName">{p.title}</div>
+                          {p.role ? <span className="mpBadge">{p.role}</span> : null}
+                        </div>
+
+                        <div className="mpBio">{p.bio ?? "소개가 비어있어요."}</div>
+
+                        <div className="mpMeta">
+                          <span>{new Date(p.created_at).toLocaleDateString()}</span>
+                          <span className="dot">·</span>
+                          <span>댓글 {p.comment_count ?? 0}</span>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
             </section>
-          </article>
+          </>
         )}
       </div>
 
@@ -1417,7 +1518,11 @@ const css = `
 }
 
 *, *:before, *:after { box-sizing: border-box; }
-.bd{ min-height:100vh; background:#fff; color:#111827; }
+.bd{ min-height:100vh; background:#fff; color:#111827; scrollbar-width: none; }
+.bd::-webkit-scrollbar{
+  width: 0;                    /* Chrome/Safari */
+  height: 0;
+}
 .wrap{ max-width:980px; margin:0 auto; padding:16px 16px 60px; }
 @media (max-width:560px){ .wrap{ padding:12px 12px 54px; } }
 
@@ -1888,6 +1993,207 @@ const css = `
 }
 @media (max-width:860px){
   .rTop{ grid-template-columns: 1fr; }
+}
+
+/* =========================
+   ✅ 멤버 미리보기 섹션 (리디자인)
+========================= */
+.mp{
+  margin-top: 30px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.mpHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  margin-bottom: 18px;  /* ← 14px → 18px */
+  flex-wrap: wrap;
+}
+
+.mpKicker{
+  font-size: 11px;
+  letter-spacing:.26em;
+  font-weight: 700;
+  color: rgba(15,23,42,.45);
+}
+
+.mpTitle{
+  margin: 6px 0 0;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color:#0f172a;
+}
+
+.mpSub{
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: rgba(15,23,42,.60);
+}
+
+.mpAll{
+  text-decoration:none;
+  font-weight: 700;
+  font-size: 12px;
+  color: rgba(120,53,15,.95);
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(245,158,11,.28);
+  background: rgba(245,158,11,.12);
+  box-shadow: 0 10px 22px rgba(245,158,11,.10);
+  transition: transform .15s ease, background .15s ease;
+}
+.mpAll:hover{
+  background: rgba(245,158,11,.16);
+  transform: translateY(-1px);
+}
+
+.mpState{
+  border: 1px solid rgba(15,23,42,.08);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255,255,255,.98);
+  color: rgba(15,23,42,.62);
+  font-size: 13px;
+}
+
+.mpGrid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+    border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+@media (max-width: 860px){
+  .mpGrid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px){
+  .mpGrid{ grid-template-columns: 1fr; }
+}
+
+/* 카드 자체: 더 “프로필” 느낌 + 깔끔한 깊이감 */
+.mpCard{
+  position: relative;
+  display:flex;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(15,23,42,.08);
+  background:
+    radial-gradient(700px 160px at 10% 0%, rgba(245,158,11,.12), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.96));
+  box-shadow: 0 14px 30px rgba(15,23,42,.06);
+  text-decoration:none;
+  color: inherit;
+  overflow:hidden;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.mpCard:hover{
+  transform: translateY(-2px);
+  border-color: rgba(245,158,11,.24);
+  box-shadow: 0 18px 42px rgba(15,23,42,.10);
+}
+
+/* 썸네일: 고정 비율 + 라운드 + 테두리 */
+.mpThumb{
+  flex: 0 0 90px;
+  height: 74px;
+  border-radius: 16px;
+  overflow:hidden;
+  border: 1px solid rgba(15,23,42,.10);
+  background: rgba(15,23,42,.04);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.mpThumb img{
+  width:100%;
+  height:100%;
+  object-fit: cover;
+  display:block;
+}
+
+/* 썸네일 없을 때도 “허전”하지 않게 */
+.mpPh{
+  font-size: 22px;
+  color: rgba(15,23,42,.55);
+}
+
+/* 오른쪽 텍스트 영역 */
+.mpBody{
+  min-width:0;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap: 7px;
+}
+
+.mpTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  min-width:0;
+}
+
+.mpName{
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  color:#0f172a;
+}
+
+/* role 뱃지: 더 이쁘고 작게 */
+.mpBadge{
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(245,158,11,.26);
+  background: rgba(245,158,11,.12);
+  color: rgba(120,53,15,.95);
+  font-weight: 900;
+  white-space:nowrap;
+}
+
+/* 소개: 줄 간격 + 두 줄 제한 */
+.mpBio{
+  font-size: 12.8px;
+  color: rgba(15,23,42,.72);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow:hidden;
+}
+
+/* 하단 메타: “칩” 느낌으로 */
+.mpMeta{
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: rgba(15,23,42,.55);
+  display:flex;
+  align-items:center;
+  gap: 8px;
+}
+.mpMeta .dot{
+  color: rgba(15,23,42,.22);
+}
+
+.mpOut{
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(15,23,42,.08);
+  border-radius: 16px;
+  background: #fff;
 }
 
 `;

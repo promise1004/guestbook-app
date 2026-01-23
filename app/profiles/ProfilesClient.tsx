@@ -12,6 +12,7 @@ type Post = {
   cover_url: string | null;
   image_urls: string[] | null;
   created_at: string;
+  comment_count?: number;
 };
 
 // ✅ default export는 Suspense로 감싸는 Wrapper
@@ -48,16 +49,19 @@ function ProfilesPage() {
     } catch {}
   }, []);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/profiles", { cache: "no-store" });
-      const json = await res.json().catch(() => ({}));
-      setPosts(json?.posts ?? []);
-    } finally {
-      setLoading(false);
-    }
+async function load() {
+  setLoading(true);
+  try {
+    const res = await fetch("/api/profiles", { cache: "no-store" });
+    const json = await res.json().catch(() => ({}));
+
+    console.log("profiles api json string:", JSON.stringify(json, null, 2));
+
+    setPosts(json?.posts ?? []);
+  } finally {
+    setLoading(false);
   }
+}
 
   async function refresh() {
     setRefreshing(true);
@@ -169,6 +173,18 @@ function ProfilesPage() {
     });
   }, [posts, q]);
 
+  // ✅ 공지(role="공지") 카드는 항상 맨 위로
+const ordered = useMemo(() => {
+  const list = [...filtered];
+  list.sort((a, b) => {
+    const aNotice = (a.role ?? "") === "공지";
+    const bNotice = (b.role ?? "") === "공지";
+    if (aNotice === bNotice) return 0;
+    return aNotice ? -1 : 1;
+  });
+  return list;
+}, [filtered]);
+
   // ✅ 복귀 중이면 화면 안 그림(깜빡임 최소화)
   if (shouldResume) return null;
 
@@ -252,10 +268,10 @@ function ProfilesPage() {
         ) : (
           <section className="list" aria-label="프로필 목록">
 
-           {filtered.map((p) => (
+           {ordered.map((p) => (
   <div
     key={p.id}
-    className="item"
+    className={`item ${(p.role ?? "") === "공지" ? "notice" : ""}`}
     role="link"
     tabIndex={0}
     onClick={() => {
@@ -291,15 +307,8 @@ function ProfilesPage() {
       <div className="bottomRow">
         <span className="date">{new Date(p.created_at).toLocaleDateString()}</span>
 
-        <div className="rightActions">
-          {/* ✅ 상세보기는 이제 진짜 링크로 */}
-          <a
-            className="openLink"
-            href={`/profiles/${p.id}?embed=1`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            자세히 보기 →
-          </a>
+<div className="rightActions">
+  <span className="commentCount">댓글 {p.comment_count ?? 0}개</span>
 
           {isAdmin ? (
             <>
@@ -340,75 +349,85 @@ function ProfilesPage() {
 }
 
 const css = `
-
-.openLink{
-  color: rgba(245,158,11,.95);
-  font-weight: 900;
-  text-decoration: none;
+:root{
+  --bg: #ffffff;
+  --text: rgba(15,23,42,.92);
+  --muted: rgba(15,23,42,.60);
+  --line: rgba(15,23,42,.10);
+  --shadow: 0 10px 30px rgba(15,23,42,.08);
+  --accent: rgba(245,158,11,.95);
+  --accent-soft: rgba(245,158,11,.12);
 }
-.openLink:hover{ text-decoration: underline; }
 
 .board{
   min-height:100vh;
-  background:#fff;
-  color: rgba(15,23,42,.92);
+  background: var(--bg);
+  color: var(--text);
 }
 
 .wrap{
-  max-width: 1100px;
+  max-width: 1320px; /* ✅ 1120 -> 1320 */
   margin: 0 auto;
-  padding: 26px 18px 60px;
-}
-@media (max-width: 560px){
-  .wrap{ padding: 22px 12px 56px; }
+  padding: 34px 18px 70px;
 }
 
+@media (max-width: 560px){
+  .wrap{ padding: 26px 12px 64px; }
+}
+
+/* 헤더 */
 .head{
   display:flex;
   align-items:flex-end;
   justify-content:space-between;
-  gap: 14px;
+  gap: 16px;
   flex-wrap: wrap;
-  padding-bottom: 14px;
-  border-bottom: 1px solid rgba(15,23,42,.08);
-  margin-bottom: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
 }
 
+.h-left{ min-width: 240px; }
+
 .kicker{
-  font-size:11px;
-  letter-spacing:.22em;
-  color: rgba(15,23,42,.52);
+  font-size: 12px;
+  letter-spacing:.24em;
+  color: rgba(15,23,42,.48);
 }
 
 .title{
-  margin: 6px 0 0;
-  font-size: 22px;
-  letter-spacing: -0.02em;
-  font-weight: 900;
+  margin: 8px 0 0;
+  font-size: 26px;           /* ✅ 더 큼 */
+  letter-spacing: -0.03em;
+  font-weight: 850;
 }
 
 .sub{
-  margin: 7px 0 0;
-  font-size: 13px;
-  color: rgba(15,23,42,.60);
+  margin: 8px 0 0;
+  font-size: 14.5px;         /* ✅ 더 큼 */
+  line-height: 1.55;
+  color: var(--muted);
 }
 
+/* 오른쪽 툴 */
 .tools{
   display:flex;
   align-items:center;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content:flex-end;
 }
 
 .search{
-  height: 40px;
+  height: 44px;               /* ✅ 높이 업 */
   display:flex;
   align-items:center;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 10px;
+  padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid rgba(15,23,42,.10);
-  background: rgba(255,255,255,.92);
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 6px 18px rgba(15,23,42,.06);
 }
 .search svg{ color: rgba(15,23,42,.45); }
 
@@ -416,74 +435,89 @@ const css = `
   border:0;
   outline:none;
   background: transparent;
-  width: 260px;
-  font-size: 13px;
+  width: 290px;
+  font-size: 14px;            /* ✅ 더 큼 */
   color: rgba(15,23,42,.86);
 }
 @media (max-width: 560px){
   .search input{ width: 200px; }
 }
 
+/* ✅ 버튼 (요청: 글자 굵기 줄이기) */
 .btn{
-  height: 40px;
-  padding: 0 14px;
+  height: 44px;
+  padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid rgba(245,158,11,.28);
-  background: rgba(245,158,11,.12);
+  border: 1px solid rgba(245,158,11,.25);
+  background: rgba(245,158,11,.10);
   color: rgba(120,53,15,.95);
-  font-weight: 800;
-  font-size: 13px;
+  font-weight: 650;           /* ✅ 기존 800 -> 650 */
+  font-size: 13.5px;
   cursor:pointer;
   text-decoration:none;
   display:inline-flex;
   align-items:center;
   justify-content:center;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+  box-shadow: 0 8px 22px rgba(245,158,11,.12);
 }
-.btn:disabled{ opacity:.6; cursor:default; }
+.btn:hover{
+  background: rgba(245,158,11,.14);
+  transform: translateY(-1px);
+}
+.btn:disabled{ opacity:.6; cursor:default; transform:none; }
+
 .btn.ghost{
   border-color: rgba(15,23,42,.12);
-  background: rgba(255,255,255,.92);
-  color: rgba(15,23,42,.78);
+  background: rgba(255,255,255,.98);
+  color: rgba(15,23,42,.76);
+  font-weight: 650;           /* ✅ 통일 */
+  box-shadow: 0 8px 22px rgba(15,23,42,.06);
+}
+.btn.ghost:hover{
+  background: rgba(15,23,42,.02);
 }
 
+/* 상태/빈화면 */
 .state{
-  margin-top: 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(15,23,42,.08);
-  background: rgba(255,255,255,.92);
-  padding: 16px;
+  margin-top: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.98);
+  padding: 18px;
   text-align:center;
   color: rgba(15,23,42,.62);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .empty{
-  margin-top: 14px;
+  margin-top: 18px;
   display:flex;
   justify-content:center;
 }
 .emptyCard{
   width: 100%;
-  max-width: 720px;
-  border-radius: 14px;
-  border: 1px solid rgba(15,23,42,.08);
-  background: rgba(255,255,255,.92);
-  padding: 16px;
+  max-width: 760px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.98);
+  padding: 18px;
   text-align:center;
   color: rgba(15,23,42,.72);
-  font-size: 13px;
+  font-size: 14px;
+  box-shadow: var(--shadow);
 }
 .emptySub{
-  margin-top: 6px;
+  margin-top: 8px;
   color: rgba(15,23,42,.52);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* 리스트 */
 .list{
   display:grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;                  /* ✅ 간격 업 */
 }
 @media (max-width: 980px){
   .list{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -492,28 +526,50 @@ const css = `
   .list{ grid-template-columns: 1fr; }
 }
 
+/* 카드 */
 .item{
   display:flex;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(15,23,42,.10);
-  background: rgba(255,255,255,.94);
+  gap: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(15,23,42,.09);
+  background: rgba(255,255,255,.98);
   text-decoration:none;
   color: inherit;
   transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
-  box-shadow: 0 10px 24px rgba(15,23,42,.06);
+  box-shadow: 0 10px 26px rgba(15,23,42,.08);
 }
 .item:hover{
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   border-color: rgba(245,158,11,.22);
+  box-shadow: 0 16px 40px rgba(15,23,42,.12);
+}
+
+/* ✅ 공지 카드: 과한 노랑 제거 + 깔끔한 강조 */
+.item.notice{
+  border-color: rgba(245,158,11,.28);
+  background: rgba(255,255,255,.98);
   box-shadow: 0 14px 34px rgba(15,23,42,.10);
+  position: relative;
+  overflow: hidden;
+  padding-left: 18px; 
+}
+
+/* 얇은 포인트 바(고급 느낌) */
+.item.notice::after{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width: 6px;
+  background: rgba(245,158,11,.75);
 }
 
 .thumb{
-  flex: 0 0 112px;
-  height: 88px;
-  border-radius: 14px;
+  flex: 0 0 120px;
+  height: 92px;
+  border-radius: 16px;
   border: 1px solid rgba(15,23,42,.08);
   background: rgba(15,23,42,.03);
   overflow:hidden;
@@ -524,12 +580,12 @@ const css = `
 .thumb img{
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover; /* ✅ 꽉 차게(잘려도 됨) */
   background: #fff;
   display:block;
 }
 .thumbPh{
-  font-size: 26px;
+  font-size: 28px;
   color: rgba(15,23,42,.55);
 }
 
@@ -538,7 +594,7 @@ const css = `
   flex: 1 1 auto;
   display:flex;
   flex-direction:column;
-  gap: 6px;
+  gap: 8px;
   padding-top: 2px;
 }
 
@@ -550,9 +606,9 @@ const css = `
 }
 
 .name{
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: -0.01em;
+  font-size: 16px;       /* ✅ 더 큼 */
+  font-weight: 700;      /* ✅ 너무 두껍지 않게 */
+  letter-spacing: -0.02em;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
@@ -560,66 +616,92 @@ const css = `
 
 .badge{
   flex: 0 0 auto;
-  font-size: 11px;
-  padding: 6px 9px;
+  font-size: 12px;       /* ✅ 더 큼 */
+  padding: 4px 10px;     /* ✅ 위아래 줄이고 좌우 유지 */
   border-radius: 999px;
   border: 1px solid rgba(245,158,11,.22);
   background: rgba(245,158,11,.10);
   color: rgba(120,53,15,.92);
-  font-weight: 900;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+/* ✅ 공지 배지(role=공지)만 살짝 더 또렷하게 */
+.item.notice .badge{
+  border-color: rgba(245,158,11,.30);
+  background: rgba(245,158,11,.14);
+  color: rgba(120,53,15,.95);
 }
 
 .desc{
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: rgba(15,23,42,.70);
+  font-size: 14px;       /* ✅ 더 큼 */
+  line-height: 1.6;
+  color: rgba(15,23,42,.72);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow:hidden;
-  min-height: 36px;
+  min-height: 44px;
 }
-.muted{ color: rgba(15,23,42,.46); }
+.muted{ color: rgba(15,23,42,.50); }
 
 .bottomRow{
   margin-top: 2px;
   display:flex;
   align-items:center;
   justify-content:space-between;
-  font-size: 11px;
-  color: rgba(15,23,42,.52);
+  font-size: 12px;      /* ✅ 더 큼 */
+  color: rgba(15,23,42,.55);
 }
 
 .rightActions{
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:10px;
 }
 
-.open{
-  color: rgba(245,158,11,.95);
-  font-weight: 900;
+.commentCount{
+  font-size: 12px;
+  color: rgba(15,23,42,.55);
+  font-weight: 650;
 }
-.date{ color: rgba(15,23,42,.52); }
 
+/* 관리자 버튼(수정/삭제) */
 .miniBtn{
-  height: 28px;
-  padding: 0 10px;
+  height: 30px;
+  padding: 0 12px;
   border-radius: 999px;
   border: 1px solid rgba(15,23,42,.12);
-  background: rgba(255,255,255,.92);
+  background: rgba(255,255,255,.98);
   color: rgba(15,23,42,.78);
-  font-weight: 900;
-  font-size: 11px;
+  font-weight: 650; /* ✅ 과한 굵기 제거 */
+  font-size: 12px;
   text-decoration:none;
   display:inline-flex;
   align-items:center;
   justify-content:center;
   cursor:pointer;
+  transition: background .12s ease, transform .12s ease;
+}
+.miniBtn:hover{
+  background: rgba(15,23,42,.03);
+  transform: translateY(-1px);
 }
 .miniBtn.danger{
   border-color: rgba(220,38,38,.25);
   color: rgba(220,38,38,.95);
   background: rgba(220,38,38,.06);
 }
+.miniBtn.danger:hover{ background: rgba(220,38,38,.10); }
+
+/* ✅ 페이지24 TOP 플로팅 버튼 숨김(일반적으로 아래 셀렉터 중 하나가 맞음) */
+#top_btn,
+#topbtn,
+.btn_top,
+.go-top,
+.scroll-top,
+a[href="#top"]{
+  display:none !important;
+}
 `;
+
