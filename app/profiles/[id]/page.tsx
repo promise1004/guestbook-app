@@ -1149,7 +1149,7 @@ const featuredComments = useMemo(() => {
       <div className="wrap">
         <div className="top">
 
-<a className="link" href={embed ? "/profiles?embed=1" : "/profiles"}>← 목록으로</a>
+<a className="link" href={embed ? "/profiles?embed=1&resume=0" : "/profiles"}>← 목록으로</a>
 
           <div className="topRight">
             <label className="switch">
