@@ -61,7 +61,7 @@ export async function GET(req: Request) {
     if (entryIds.length > 0) {
       const { data: r, error: e2 } = await supabaseAdmin
         .from("guestbook_replies")
-        .select("id,entry_id,name,content,created_at,is_admin")
+        .select("id,entry_id,name,content,created_at,is_admin,image_url")
         .in("entry_id", entryIds)
         .order("created_at", { ascending: true });
 

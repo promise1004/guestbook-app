@@ -12,6 +12,7 @@ type Reply = {
   content: string;
   created_at: string;
   is_admin?: boolean;
+  image_url?: string | null;
 };
 
 type Entry = {
@@ -64,6 +65,7 @@ const [verifyPw, setVerifyPw] = useState("");
 
   const [isEmbedded, setIsEmbedded] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [replyImageByEntry, setReplyImageByEntry] = useState<Record<string, File | null>>({});
 
 function goPage(p: number) {
   setPage(p);
@@ -206,16 +208,41 @@ async function submitEntry() {
   return data.publicUrl;
 }
 
-  async function submitReply(entryId: string, r: { name: string; password: string; content: string }) {
-    const res = await fetch(`/api/guestbook/${entryId}/replies`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...r, adminKey }),
-    });
-    const data = await res.json();
-    if (!res.ok) return alert(data.error || "답글 실패");
-    load(page);
+async function submitReply(
+  entryId: string,
+  r: { name: string; password: string; content: string },
+  file?: File | null
+) {
+  const fd = new FormData();
+  fd.set("name", r.name);
+  fd.set("password", r.password);
+  fd.set("content", r.content);
+  if (adminKey) fd.set("adminKey", adminKey);
+  if (file) fd.set("image", file);
+
+  const res = await fetch(`/api/guestbook/${entryId}/replies`, {
+    method: "POST",
+    body: fd,
+  });
+
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    console.error("Reply POST returned non-JSON:", text);
+    alert("답글 등록 실패 (서버 응답이 JSON이 아님)");
+    return false;
   }
+
+  if (!res.ok) {
+    alert(data.error || "답글 실패");
+    return false;
+  }
+
+  await load(page);
+  return true;
+}
 
   async function editEntry(entryId: string) {
     const next = prompt("수정할 내용을 입력하세요");
@@ -648,27 +675,47 @@ try {
               </button>
             </>
           ) : (
-            <button
-              onClick={() => {
-                setVerifyReplyId(r.id);
-                setVerifyPw("");
-              }}
-              style={{ ...linkBtn, fontSize: 12 }}
-            >
-              본인확인
-            </button>
+<button
+  type="button"
+  onClick={() => {
+    console.log("본인확인 클릭됨", r.id);
+    setVerifyReplyId(r.id);
+    setVerifyPw("");
+  }}
+  style={{ ...linkBtn, fontSize: 12 }}
+>
+  본인확인
+</button>
+
           )}
         </div>
       )}
     </div>
 
     {/* ✅ 내용/편집 */}
-    {!isEditing ? (
-      <div style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.5 }}>
-        {r.content}
+{!isEditing ? (
+  <>
+    <div style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.5 }}>
+      {r.content}
+    </div>
+
+    {r.image_url ? (
+      <div style={{ marginTop: 10 }}>
+        <img
+          src={r.image_url}
+          alt="답글 첨부 이미지"
+          style={{
+            maxWidth: "100%",
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            display: "block",
+          }}
+        />
       </div>
-    ) : (
-      <>
+    ) : null}
+  </>
+) : (
+  <>
         <textarea
           value={editingText}
           onChange={(ev) => setEditingText(ev.target.value)}
@@ -747,10 +794,8 @@ try {
         </div>
       </div>
     ) : null}
-  </div>
-);
 
-                    {/* ✅ 본인확인 인라인 UI (일반유저) */}
+{/* ✅ 본인확인 인라인 UI (일반유저) */}
 {!isAdminMode && verifyReplyId === r.id && !canManageReply && !isEditing ? (
   <div
     style={{
@@ -770,39 +815,46 @@ try {
       placeholder="비밀번호(4자 이상)"
       style={{ ...inputStyle, maxWidth: 220, padding: "8px 10px" }}
     />
-    <button
-      onClick={() => verifyReply(e.id, r.id)}
-      style={{
-        padding: "8px 10px",
-        borderRadius: 10,
-        border: "none",
-        background: "#111827",
-        color: "#fff",
-        cursor: "pointer",
-        fontSize: 12,
-      }}
-    >
-      확인
-    </button>
-    <button
-      onClick={() => {
-        setVerifyReplyId(null);
-        setVerifyPw("");
-      }}
-      style={{ ...linkBtn, fontSize: 12 }}
-    >
-      취소
-    </button>
+<button
+  type="button"
+  onClick={() => verifyReply(e.id, r.id)}
+  style={{
+    padding: "8px 10px",
+    borderRadius: 10,
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    cursor: "pointer",
+    fontSize: 12,
+  }}
+>
+  확인
+</button>
+
+<button
+  type="button"
+  onClick={() => {
+    setVerifyReplyId(null);
+    setVerifyPw("");
+  }}
+  style={{ ...linkBtn, fontSize: 12 }}
+>
+  취소
+</button>
   </div>
 ) : null}
+
+  </div>
+);
                   })}
                 </div>
               ) : null}
 
               {/* 답글 달기 버튼 */}
               <div style={{ marginTop: 12, paddingLeft: INDENT, display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => setOpenReplyFor(isReplyOpen ? null : e.id)}
+<button
+  type="button"
+  onClick={() => setOpenReplyFor(isReplyOpen ? null : e.id)}
                   style={{
                     padding: "8px 12px",
                     borderRadius: 12,
@@ -829,13 +881,13 @@ try {
               >
                 <div style={{ paddingTop: isReplyOpen ? 12 : 0 }}>
                   {isReplyOpen ? (
-                    <ReplyBox
-                      onSubmit={async (r) => {
-                        await submitReply(e.id, r);
-                        setOpenReplyFor(null);
-                      }}
-                      onCancel={() => setOpenReplyFor(null)}
-                    />
+<ReplyBox
+  onSubmit={async (r) => {
+    const ok = await submitReply(e.id, r, r.file ?? null);
+    if (ok) setOpenReplyFor(null);
+  }}
+  onCancel={() => setOpenReplyFor(null)}
+/>
                   ) : null}
                 </div>
               </div>
@@ -985,12 +1037,13 @@ function ReplyBox({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (r: { name: string; password: string; content: string }) => void;
+  onSubmit: (r: { name: string; password: string; content: string; file?: File | null }) => void
   onCancel: () => void;
 }) {
   const [rn, setRn] = useState("");
   const [rp, setRp] = useState("");
   const [rc, setRc] = useState("");
+  const [rf, setRf] = useState<File | null>(null);
 
   return (
     <div style={{ marginTop: 0 }}>
@@ -1017,6 +1070,13 @@ function ReplyBox({
         style={{ ...inputStyle, marginTop: 8, minHeight: 70, resize: "vertical" as any }}
       />
 
+      <input
+  type="file"
+  accept="image/*"
+  onChange={(e) => setRf(e.target.files?.[0] ?? null)}
+  style={{ ...inputStyle, marginTop: 8 }}
+/>
+
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8, gap: 8 }}>
         <button
           onClick={onCancel}
@@ -1034,10 +1094,11 @@ function ReplyBox({
 
         <button
           onClick={() => {
-            onSubmit({ name: rn, password: rp, content: rc });
-            setRn("");
-            setRp("");
-            setRc("");
+onSubmit({ name: rn, password: rp, content: rc, file: rf });
+setRn("");
+setRp("");
+setRc("");
+setRf(null);
           }}
           style={{
             padding: "8px 12px",
