@@ -90,8 +90,20 @@ const embed = sp.get("embed") === "1";
 // ✅ (추가) 마지막으로 본 상세 id 저장 (F5 복귀용)
 useEffect(() => {
   if (!id) return;
+
+  // ✅ 1) localStorage 시도
   try {
     localStorage.setItem("profiles_last_open", id);
+  } catch {}
+
+  // ✅ 2) sessionStorage도 시도 (localStorage 막히는 케이스 대비)
+  try {
+    sessionStorage.setItem("profiles_last_open", id);
+  } catch {}
+
+  // ✅ 3) 최후의 보루: window.name (iframe에서도 꽤 잘 살아남음)
+  try {
+    window.name = `profiles_last_open:${id}`;
   } catch {}
 }, [id]);
 

@@ -108,8 +108,19 @@ export default function ProfilesAdmin() {
 
       if (!res.ok) return alert(rJson?.error ?? "등록 실패");
 
-      alert("등록 완료!");
-      location.href = "/profiles";
+alert("등록 완료!");
+
+// (선택) 등록페이지에서 입력한 키도 저장해두기
+try { localStorage.setItem("adminKey", k); } catch {}
+
+location.href = "/profiles?embed=1";
+
+      // ✅ 여기 추가 (관리자키 저장)
+try { localStorage.setItem("adminKey", k); } catch {}
+
+// ✅ embed 유지해서 목록으로 이동
+location.href = "/profiles?embed=1";
+
     } catch (e: any) {
       alert(e?.message ?? "에러가 발생했어");
     } finally {
@@ -128,7 +139,7 @@ export default function ProfilesAdmin() {
             <h1 className="ad-title">프로필 등록 (공사중)</h1>
             <p className="ad-sub">관리자만 등록 / 누구나 열람+댓글</p>
           </div>
-          <a className="ad-back" href="/profiles">← 목록으로</a>
+          <a className="ad-back" href="/profiles?embed=1">← 목록으로</a>
         </header>
 
         <section className="ad-card">

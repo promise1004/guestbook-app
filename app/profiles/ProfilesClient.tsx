@@ -1,4 +1,4 @@
-// app/profiles/page.tsx
+// app/profiles/ProfilesClient.tsx
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -14,7 +14,7 @@ type Post = {
   created_at: string;
 };
 
-// ✅ 1) default export는 Suspense로 감싸는 Wrapper로!
+// ✅ default export는 Suspense로 감싸는 Wrapper
 export default function ProfilesClient() {
   return (
     <Suspense fallback={null}>
@@ -23,7 +23,6 @@ export default function ProfilesClient() {
   );
 }
 
-// ✅ 2) 여기서 useSearchParams / useRouter 사용
 function ProfilesPage() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -33,11 +32,27 @@ function ProfilesPage() {
   const [q, setQ] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  // 관리자 키(로컬 저장)
+  const [adminKey, setAdminKey] = useState<string>("");
+  const isAdmin = !!adminKey;
+
+  // 복귀 로직
+  const [shouldResume, setShouldResume] = useState(false);
+  const [resumeId, setResumeId] = useState<string>("");
+
+  // ✅ 로컬스토리지에서 관리자 키 로드
+  useEffect(() => {
+    try {
+      const found = (localStorage.getItem("adminKey") || "").trim();
+      setAdminKey(found);
+    } catch {}
+  }, []);
+
   async function load() {
     setLoading(true);
     try {
       const res = await fetch("/api/profiles", { cache: "no-store" });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       setPosts(json?.posts ?? []);
     } finally {
       setLoading(false);
@@ -53,43 +68,96 @@ function ProfilesPage() {
     }
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  async function deletePost(id: string) {
+    if (!confirm("정말 삭제할까요?")) return;
 
-  // ✅ 너가 추가한 “F5 복귀 로직”도 여기 그대로 둬도 됨
+    const res = await fetch(`/api/profiles/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminKey }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(json?.error ?? "삭제 실패");
+      return;
+    }
+
+    setPosts((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  // ✅ (1) 마운트 시 복귀 여부 판단
   useEffect(() => {
     const embed = sp.get("embed") === "1";
-    if (!embed) return;
-
     const resumeOff = sp.get("resume") === "0";
-    if (resumeOff) return;
 
     const inIframe = (() => {
-      try { return window.self !== window.top; } catch { return true; }
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
     })();
 
-    if (!inIframe && !embed) return;
+    const isReload = (() => {
+      try {
+        const nav = performance.getEntriesByType("navigation")[0] as
+          | PerformanceNavigationTiming
+          | undefined;
+        if (nav?.type) return nav.type === "reload";
+        // @ts-ignore
+        return performance?.navigation?.type === 1;
+      } catch {
+        return false;
+      }
+    })();
 
     let last = "";
-    try { last = localStorage.getItem("profiles_last_open") || ""; } catch {}
-    if (!last) { try { last = sessionStorage.getItem("profiles_last_open") || ""; } catch {} }
+    try {
+      last = localStorage.getItem("profiles_last_open") || "";
+    } catch {}
+    if (!last) {
+      try {
+        last = sessionStorage.getItem("profiles_last_open") || "";
+      } catch {}
+    }
     if (!last) {
       try {
         const m = String(window.name || "");
-        if (m.startsWith("profiles_last_open:")) last = m.slice("profiles_last_open:".length);
+        if (m.startsWith("profiles_last_open:"))
+          last = m.slice("profiles_last_open:".length);
       } catch {}
     }
 
-    if (!last) return;
+    const looksLikeFirstEntry = (() => {
+      try {
+        return window.history.length <= 1;
+      } catch {
+        return false;
+      }
+    })();
 
-    const t = setTimeout(() => {
-      router.replace(`/profiles/${last}?embed=1`);
-    }, 30);
+    const ok =
+      isReload && !resumeOff && (embed || inIframe) && !!last && !looksLikeFirstEntry;
 
-    return () => clearTimeout(t);
-  }, [router, sp]);
+    setShouldResume(ok);
+    setResumeId(ok ? last : "");
+  }, [sp]);
 
+  // ✅ (2) 복귀면 즉시 replace
+  useEffect(() => {
+    if (!shouldResume || !resumeId) return;
+    router.replace(`/profiles/${resumeId}?embed=1`);
+  }, [router, shouldResume, resumeId]);
+
+  // ✅ (3) 복귀가 아닐 때만 목록 로드
+  useEffect(() => {
+    if (shouldResume) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldResume]);
+
+  // ✅ 검색 필터
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
     if (!keyword) return posts;
@@ -100,6 +168,9 @@ function ProfilesPage() {
       return t.includes(keyword) || r.includes(keyword) || b.includes(keyword);
     });
   }, [posts, q]);
+
+  // ✅ 복귀 중이면 화면 안 그림(깜빡임 최소화)
+  if (shouldResume) return null;
 
   return (
     <main className="board">
@@ -134,6 +205,38 @@ function ProfilesPage() {
             <a className="btn ghost" href="/profiles/admin?embed=1">
               관리자 등록
             </a>
+
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={() => {
+                const k = prompt("관리자 키(ADMIN_KEY)를 입력해줘")?.trim() || "";
+                if (!k) return;
+                try {
+                  localStorage.setItem("adminKey", k);
+                } catch {}
+                setAdminKey(k);
+                alert("관리자 모드 ON!");
+              }}
+            >
+              관리자 로그인
+            </button>
+
+            {isAdmin ? (
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem("adminKey");
+                  } catch {}
+                  setAdminKey("");
+                  alert("관리자 모드 OFF");
+                }}
+              >
+                로그아웃
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -148,37 +251,85 @@ function ProfilesPage() {
           </div>
         ) : (
           <section className="list" aria-label="프로필 목록">
-            {filtered.map((p) => (
-              <a key={p.id} className="item" href={`/profiles/${p.id}?embed=1`}>
-                <div className="thumb" aria-hidden="true">
-                  {p.cover_url ? (
-                    <img src={p.cover_url} alt="" loading="lazy" />
-                  ) : (
-                    <div className="thumbPh">🙂</div>
-                  )}
-                </div>
 
-                <div className="body">
-                  <div className="topRow">
-                    <div className="name" title={p.title}>
-                      {p.title}
-                    </div>
-                    {p.role ? <span className="badge">{p.role}</span> : null}
-                  </div>
+           {filtered.map((p) => (
+  <div
+    key={p.id}
+    className="item"
+    role="link"
+    tabIndex={0}
+    onClick={() => {
+      window.location.href = `/profiles/${p.id}?embed=1`;
+    }}
+    onKeyDown={(e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        window.location.href = `/profiles/${p.id}?embed=1`;
+      }
+    }}
+  >
+    <div className="thumb" aria-hidden="true">
+      {p.cover_url ? (
+        <img src={p.cover_url} alt="" loading="lazy" />
+      ) : (
+        <div className="thumbPh">🙂</div>
+      )}
+    </div>
 
-                  <div className="desc">
-                    {p.bio ? p.bio : <span className="muted">소개가 비어있어요.</span>}
-                  </div>
+    <div className="body">
+      <div className="topRow">
+        <div className="name" title={p.title}>
+          {p.title}
+        </div>
+        {p.role ? <span className="badge">{p.role}</span> : null}
+      </div>
 
-                  <div className="bottomRow">
-                    <span className="date">
-                      {new Date(p.created_at).toLocaleDateString()}
-                    </span>
-                    <span className="open">자세히 보기 →</span>
-                  </div>
-                </div>
+      <div className="desc">
+        {p.bio ? p.bio : <span className="muted">소개가 비어있어요.</span>}
+      </div>
+
+      <div className="bottomRow">
+        <span className="date">{new Date(p.created_at).toLocaleDateString()}</span>
+
+        <div className="rightActions">
+          {/* ✅ 상세보기는 이제 진짜 링크로 */}
+          <a
+            className="openLink"
+            href={`/profiles/${p.id}?embed=1`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            자세히 보기 →
+          </a>
+
+          {isAdmin ? (
+            <>
+              <a
+                className="miniBtn"
+                href={`/profiles/${p.id}/admin?embed=1`}
+                onClick={(e) => {
+                  e.stopPropagation(); // ✅ 카드 클릭 막기
+                }}
+              >
+                수정
               </a>
-            ))}
+
+              <button
+                type="button"
+                className="miniBtn danger"
+                onClick={(e) => {
+                  e.stopPropagation(); // ✅ 카드 클릭 막기
+                  deletePost(p.id);
+                }}
+              >
+                삭제
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  </div>
+))}
           </section>
         )}
       </div>
@@ -189,9 +340,17 @@ function ProfilesPage() {
 }
 
 const css = `
+
+.openLink{
+  color: rgba(245,158,11,.95);
+  font-weight: 900;
+  text-decoration: none;
+}
+.openLink:hover{ text-decoration: underline; }
+
 .board{
   min-height:100vh;
-  background:#fff; /* ✅ 완전 흰색 */
+  background:#fff;
   color: rgba(15,23,42,.92);
 }
 
@@ -251,7 +410,6 @@ const css = `
   border: 1px solid rgba(15,23,42,.10);
   background: rgba(255,255,255,.92);
 }
-
 .search svg{ color: rgba(15,23,42,.45); }
 
 .search input{
@@ -321,7 +479,7 @@ const css = `
   font-size: 12px;
 }
 
-/* ✅ 게시판형 리스트 */
+/* 리스트 */
 .list{
   display:grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -366,7 +524,7 @@ const css = `
 .thumb img{
   width: 100%;
   height: 100%;
-  object-fit: contain; /* ✅ 안 잘리게 */
+  object-fit: contain;
   background: #fff;
   display:block;
 }
@@ -431,9 +589,37 @@ const css = `
   font-size: 11px;
   color: rgba(15,23,42,.52);
 }
+
+.rightActions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
 .open{
   color: rgba(245,158,11,.95);
   font-weight: 900;
 }
 .date{ color: rgba(15,23,42,.52); }
+
+.miniBtn{
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15,23,42,.12);
+  background: rgba(255,255,255,.92);
+  color: rgba(15,23,42,.78);
+  font-weight: 900;
+  font-size: 11px;
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+.miniBtn.danger{
+  border-color: rgba(220,38,38,.25);
+  color: rgba(220,38,38,.95);
+  background: rgba(220,38,38,.06);
+}
 `;
