@@ -87,6 +87,14 @@ const id = typeof (params as any)?.id === "string" ? (params as any).id : undefi
 const sp = useSearchParams();
 const embed = sp.get("embed") === "1";
 
+// ✅ (추가) 마지막으로 본 상세 id 저장 (F5 복귀용)
+useEffect(() => {
+  if (!id) return;
+  try {
+    localStorage.setItem("profiles_last_open", id);
+  } catch {}
+}, [id]);
+
   // ✅ 댓글 '달린 순서' 고정(처음 본 순서 그대로 유지)
 const orderRef = useRef<string[]>([]);
 

@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Post = {
   id: string;
@@ -14,6 +15,9 @@ type Post = {
 };
 
 export default function ProfilesPage() {
+    const router = useRouter();
+  const sp = useSearchParams();
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -42,6 +46,23 @@ export default function ProfilesPage() {
   useEffect(() => {
     load();
   }, []);
+
+    // ✅ (추가) embed=1 상태에서 "새로고침(F5)"으로 목록이 열리면
+  // 마지막으로 보던 상세 페이지로 자동 복귀
+  useEffect(() => {
+    const embed = sp.get("embed") === "1";
+    if (!embed) return;
+
+    // ✅ 새로고침인 경우에만 동작 (일반 진입/뒤로가기 방해 X)
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    const isReload = nav?.type === "reload";
+    if (!isReload) return;
+
+    try {
+      const last = localStorage.getItem("profiles_last_open");
+      if (last) router.replace(`/profiles/${last}?embed=1`);
+    } catch {}
+  }, [router, sp]);
 
   const filtered = useMemo(() => {
     const keyword = q.trim().toLowerCase();
@@ -84,7 +105,7 @@ export default function ProfilesPage() {
               {refreshing ? "새로고침…" : "새로고침"}
             </button>
 
-            <a className="btn ghost" href="/profiles/admin">
+            <a className="btn ghost" href="/profiles/admin?embed=1">
               관리자 등록
             </a>
           </div>
@@ -102,7 +123,7 @@ export default function ProfilesPage() {
         ) : (
           <section className="list" aria-label="프로필 목록">
             {filtered.map((p) => (
-              <a key={p.id} className="item" href={`/profiles/${p.id}`}>
+              <a key={p.id} className="item" href={`/profiles/${p.id}?embed=1`}>
                 <div className="thumb" aria-hidden="true">
                   {p.cover_url ? (
                     <img src={p.cover_url} alt="" loading="lazy" />
