@@ -54,6 +54,7 @@ export default function Home() {
 const [totalPages, setTotalPages] = useState(1);
 const limit = 5;
 const sideIndent = useIndent();
+const isMobile = sideIndent === 0;
 
   // ✅ 답글 본인 인증된 replyId 저장
 const [verifiedReplies, setVerifiedReplies] = useState<Record<string, boolean>>({});
@@ -384,8 +385,8 @@ try {
     <div
   style={{
     maxWidth: isEmbedded ? 1320 : 920,
-    margin: "40px auto",
-    padding: "0 16px",
+    margin: isMobile ? "16px auto" : "40px auto",
+padding: isMobile ? "0 12px" : "0 16px",
   }}
 >
       {/* 제목 + 관리자 */}
@@ -531,7 +532,7 @@ try {
             <div
               key={e.id}
               style={{
-                padding: 16,
+                padding: isMobile ? 12 : 16,
                 borderTop: idx === 0 ? "none" : "1px solid #e5e7eb",
               }}
             >
@@ -561,14 +562,26 @@ try {
 </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <button onClick={() => editEntry(e.id)} style={linkBtn}>
-                    수정
-                  </button>
-                  <button onClick={() => deleteEntry(e.id)} style={{ ...linkBtn, color: "#ef4444" }}>
-                    삭제
-                  </button>
-                </div>
+                <div
+  style={{
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+
+    whiteSpace: "nowrap", // ✅ 줄바꿈 방지
+    flexShrink: 0,        // ✅ 모바일에서 이 영역 안 줄어들게
+  }}
+>
+  <button onClick={() => editEntry(e.id)} style={linkBtn}>
+    수정
+  </button>
+  <button
+    onClick={() => deleteEntry(e.id)}
+    style={{ ...linkBtn, color: "#ef4444" }}
+  >
+    삭제
+  </button>
+</div>
               </div>
 
               {/* 본문 (패딩 추가) */}
@@ -871,13 +884,15 @@ try {
   type="button"
   onClick={() => setOpenReplyFor(isReplyOpen ? null : e.id)}
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                    background: "#fff",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
+  padding: "8px 12px",
+  borderRadius: 12,
+  border: "1px solid #e5e7eb",
+  background: "#fff",
+  cursor: "pointer",
+  fontSize: 13,
+  color: "#111827",     // ✅ 추가
+  fontWeight: 700,      // ✅ 추가
+}}
                 >
                   답글 달기
                 </button>
@@ -946,21 +961,26 @@ function Pagination({
   for (let p = start; p <= end; p++) pages.push(p);
 
 const btn: React.CSSProperties = {
-  minWidth: 32,     // ⬅ 36 → 32
-  height: 30,       // ⬅ 34 → 30
-  borderRadius: 10, // ⬅ 12 → 10
+  minWidth: 32,
+  height: 30,
+  borderRadius: 10,
   border: "1px solid #e5e7eb",
   background: "#fff",
   cursor: "pointer",
-  fontSize: 12,     // ⬅ 13 → 12
+  fontSize: 12,
+
+  color: "#374151",          // ✅ 추가: 파란 글씨 방지
+  fontWeight: 700,           // ✅ 추가: 가독성
+  outline: "none",           // ✅ 추가: 포커스 테두리 튐 최소화
 };
 
-  const active: React.CSSProperties = {
-    ...btn,
-    background: "#111827",
-    color: "#fff",
-    fontWeight: 700,
-  };
+const active: React.CSSProperties = {
+  ...btn,
+  background: "#111827",
+  color: "#fff",
+  fontWeight: 800,
+  borderColor: "#111827",
+};
 
   const disabled: React.CSSProperties = {
     ...btn,
