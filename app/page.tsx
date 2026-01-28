@@ -27,9 +27,16 @@ type Entry = {
 
 const INDENT = 54;
 const MOBILE_BP = 768;
+const CONTROL_H = 40;           // PC 입력칸 높이
+const CONTROL_H_M = 38;         // 모바일 입력칸 높이
 
 const FONT_STACK =
   '"Pretendard Variable","Pretendard",system-ui,-apple-system,"Segoe UI","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+
+const ACCENT = "#ffb600";          // 포인트(기준)
+const ACCENT_SOFT = "#fff9e8";     // ✅ 더 옅은 배경(노란기 줄임)
+const ACCENT_LINE = "#ffe6ad";     // ✅ 더 옅은 테두리(공지에만 사용)
+const ACCENT_TEXT = "#7a5200";     // ✅ 배경과 비슷하지만 진한 예쁜 톤
 
 function useIndent() {
   const [indent, setIndent] = useState(INDENT);
@@ -527,7 +534,7 @@ return (
     file={imageFile}
     onChange={(f) => setImageFile(f)}
     isMobile={isMobile}
-    label="파일 선택"
+    label="파일선택"
   />
 </Field>
 
@@ -546,15 +553,19 @@ return (
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
           <button
             onClick={submitEntry}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 12,
-              border: "none",
-              background: "#111827",
-              color: "#fff",
-              cursor: "pointer",
-              fontSize: 13,
-            }}
+style={{
+  padding: "8px 14px",   // ✅ 위아래만 줄임
+  borderRadius: 12,
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: ACCENT_LINE,
+  background: ACCENT_SOFT,
+  color: ACCENT_TEXT,    // ✅ 배경과 어울리는 진한 톤
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 600,
+}}
+
           >
             등록
           </button>
@@ -567,15 +578,15 @@ return (
     marginTop: 16,
     padding: "14px 16px",
     borderRadius: 14,
-    border: "1px dashed #e5e7eb",
-    background: "#fffbeb",
+border: `1px dashed ${ACCENT_LINE}`,
+background: ACCENT_SOFT,
+color: "#374151",
     fontSize: 14,
-    color: "#374151",
     lineHeight: 1.6,
     textAlign: "center",
   }}
 >
-  <div style={{ fontWeight: 700, marginBottom: 6 }}>📌 공지</div>
+  <div style={{ fontWeight: 600, marginBottom: 6 }}>📌 공지</div>
   <div>
     이 방명록은 자유롭게 작성하실 수 있습니다.<br />
     비밀번호는 <b>수정·삭제 시 꼭 필요</b>하니 잊지 말아주세요 🙂
@@ -1008,10 +1019,10 @@ style={{
   cursor: "pointer",
   fontSize: 13,
   color: "#111827",
-  fontWeight: 600,
+  fontWeight: 500,
 }}
   >
-    {isReplyOpen ? "답글 닫기" : "답글 달기"}
+    {isReplyOpen ? "댓글 닫기" : "댓글 달기"}
   </button>
 </div>
 
@@ -1098,21 +1109,26 @@ function FilePicker({
 }) {
   const id = React.useId();
 
+  const H = isMobile ? CONTROL_H_M : CONTROL_H;
+
   return (
     <div
       style={{
         width: "100%",
-        border: "1px solid #e5e7eb",
+        borderWidth: 1,                 // ✅ 무조건 1px
+        borderStyle: "solid",
+        borderColor: "#e5e7eb",         // ✅ 바깥 테두리는 회색 고정(두꺼워 보이는 착시 방지)
         borderRadius: 12,
-        padding: isMobile ? "8px 10px" : "10px 12px",
+        padding: 0,
+        height: H,
         display: "flex",
         alignItems: "center",
         gap: 10,
         background: "#fff",
         boxSizing: "border-box",
+        overflow: "hidden",             // ✅ 안쪽 요소가 밖으로 삐져나오며 테두리 두꺼워 보이는 것 방지
       }}
     >
-      {/* 실제 input은 숨김 */}
       <input
         id={id}
         type="file"
@@ -1131,48 +1147,48 @@ function FilePicker({
         }}
       />
 
-      {/* 버튼처럼 보이는 label */}
       <label
         htmlFor={id}
         style={{
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: isMobile ? "6px 10px" : "7px 12px",
-          borderRadius: 10,
-          borderWidth: 1,
-          borderStyle: "solid",
-          borderColor: "#e5e7eb",
-          background: "#f9fafb",
+          height: H,                    // ✅ 세로 꽉 채우고
+          padding: isMobile ? "0 10px" : "0 12px",
+          borderRadius: 0,              // ✅ 컨테이너가 라운드라 버튼은 0이 더 깔끔
+          border: "none",               // ✅ 라벨 테두리 제거(겹쳐 보여서 두꺼워 보이는 원인)
+          background: ACCENT_SOFT,       // ✅ 버튼만 은은한 포인트
+          color: ACCENT_TEXT,
           cursor: "pointer",
           fontSize: isMobile ? 12 : 13,
-          fontWeight: 700,
-          color: "#111827",
+          fontWeight: 600,
           flexShrink: 0,
-          lineHeight: 1,
           userSelect: "none",
+          lineHeight: 1,
         }}
       >
         {label}
       </label>
 
-      {/* 파일명 */}
       <div
         style={{
           minWidth: 0,
           flex: 1,
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
           fontSize: isMobile ? 12 : 13,
           color: file ? "#374151" : "#9ca3af",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
+          paddingRight: 10,
         }}
         title={file?.name ?? ""}
       >
         {file ? file.name : "선택된 파일 없음"}
       </div>
 
-      {/* 선택 해제 */}
       {file ? (
         <button
           type="button"
@@ -1184,7 +1200,8 @@ function FilePicker({
             color: "#6b7280",
             fontSize: isMobile ? 12 : 13,
             fontWeight: 700,
-            padding: "4px 6px",
+            padding: "0 10px",
+            height: "100%",
             lineHeight: 1,
           }}
         >
@@ -1246,10 +1263,10 @@ const btn: React.CSSProperties = {
 
 const active: React.CSSProperties = {
   ...btn,
-  background: "#111827",
-  color: "#fff",
-  fontWeight: 800,
-  borderColor: "#111827",
+  background: ACCENT_SOFT,
+  color: "#111827",
+  fontWeight: 900,
+  borderColor: ACCENT_LINE,
 };
 
   const disabled: React.CSSProperties = {
@@ -1363,13 +1380,13 @@ function ReplyBox({
   }}
 >
         <input
-          placeholder="답글 닉네임"
+          placeholder="댓글 닉네임"
           value={rn}
           onChange={(e) => setRn(e.target.value)}
           style={inputStyle}
         />
         <input
-          placeholder="답글 비밀번호"
+          placeholder="댓글 비밀번호"
           type="password"
           value={rp}
           onChange={(e) => setRp(e.target.value)}
@@ -1378,7 +1395,7 @@ function ReplyBox({
       </div>
 
       <textarea
-        placeholder="답글 내용"
+        placeholder="댓글 내용"
         value={rc}
         onChange={(e) => setRc(e.target.value)}
         style={{ ...inputStyle, marginTop: 8, minHeight: 70, resize: "vertical" as any }}
@@ -1389,7 +1406,7 @@ function ReplyBox({
     file={rf}
     onChange={(f) => setRf(f)}
     isMobile={isMobile}
-    label="파일 선택"
+    label="파일선택"
   />
 </div>
 
@@ -1416,17 +1433,20 @@ setRp("");
 setRc("");
 setRf(null);
           }}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 12,
-            border: "none",
-            background: "#111827",
-            color: "#fff",
-            cursor: "pointer",
-            fontSize: 13,
-          }}
+style={{
+  padding: "8px 12px",
+  borderRadius: 12,
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: ACCENT_LINE,
+  background: ACCENT_SOFT,
+  color: ACCENT_TEXT,
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 600,
+}}
         >
-          답글 등록
+          댓글 등록
         </button>
       </div>
     </div>
@@ -1443,6 +1463,8 @@ const inputStyle: React.CSSProperties = {
   background: "#fff",
   boxSizing: "border-box",
   fontFamily: "inherit",
+  height: CONTROL_H,              // ✅ PC 기본 높이 통일
+  lineHeight: "20px",
 };
 
 const linkBtn: React.CSSProperties = {
