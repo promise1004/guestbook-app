@@ -25,6 +25,12 @@ type Entry = {
   replies: Reply[];
 };
 
+const NO_TAP: React.CSSProperties = {
+  WebkitTapHighlightColor: "transparent",
+  WebkitTouchCallout: "none",
+  outline: "none",
+};
+
 const INDENT = 54;
 const MOBILE_BP = 768;
 const CONTROL_H = 40;           // PC 입력칸 높이
@@ -86,6 +92,18 @@ useEffect(() => {
   window.addEventListener("resize", apply);
   return () => window.removeEventListener("resize", apply);
 }, []);
+
+const linkBtn: React.CSSProperties = {
+  ...NO_TAP,
+  background: "transparent",
+  border: "none",
+  padding: 0,
+  cursor: "pointer",
+  color: "#8d8d8d",
+  fontSize: 12,
+  fontWeight: 300,          // ✅ 지금보다 얇게
+  textDecoration: "none",   // ✅ 밑줄 제거
+};
 
 const baseBtn: React.CSSProperties = {
   padding: isMobile ? "1px 6px" : "0px",
@@ -149,8 +167,12 @@ function goPage(p: number) {
 }
 
 useEffect(() => {
-  // iframe 안에서 열렸는지 확인
-  setIsEmbedded(window.self !== window.top);
+  try {
+    setIsEmbedded(window.self !== window.top);
+  } catch {
+    // cross-origin iframe이면 접근 막혀서 여기로 옴 → 그냥 iframe이라고 간주
+    setIsEmbedded(true);
+  }
 }, []);
 
 function formatDateTime(dateString: string) {
@@ -480,11 +502,11 @@ return (
 
 {!adminEnabled ? (
   <button onClick={setAdmin} style={{ ...linkBtn, fontSize: 12 }}>
-    관리자 모드
+    관리자모드
   </button>
 ) : (
   <button onClick={clearAdmin} style={{ ...linkBtn, fontSize: 12 }}>
-    관리자 해제
+    관리자해제
   </button>
 )}
       </div>
@@ -499,7 +521,7 @@ return (
         }}
       >
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Field label="닉네임">
+          <Field label="닉네임" isMobile={isMobile}>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -508,8 +530,8 @@ return (
             />
           </Field>
 
-          <Field label="프로필" narrow>
-            <select value={avatar} onChange={(e) => setAvatar(e.target.value)} style={inputStyle}>
+          <Field label="프로필" narrow isMobile={isMobile}>
+            <select value={avatar} onChange={(e) => setAvatar(e.target.value)} style={selectStyle}>
               {["🙂", "😎", "🐰", "🐻", "🦊", "🐱", "✨"].map((a) => (
                 <option key={a} value={a}>
                   {a}
@@ -518,7 +540,7 @@ return (
             </select>
           </Field>
 
-          <Field label="비밀번호 (수정/삭제)" narrow>
+          <Field label="비밀번호 (수정/삭제)" narrow isMobile={isMobile}>
             <input
               type="password"
               value={password}
@@ -529,7 +551,7 @@ return (
           </Field>
 
             {/* ✅ 여기 추가: 이미지 첨부 */}
-<Field label="사진 첨부" narrow>
+<Field label="사진 첨부" narrow isMobile={isMobile}>
   <FilePicker
     file={imageFile}
     onChange={(f) => setImageFile(f)}
@@ -554,18 +576,18 @@ return (
           <button
             onClick={submitEntry}
 style={{
-  padding: "8px 14px",   // ✅ 위아래만 줄임
+  ...NO_TAP,
+  padding: "8px 14px",
   borderRadius: 12,
   borderWidth: 1,
   borderStyle: "solid",
   borderColor: ACCENT_LINE,
   background: ACCENT_SOFT,
-  color: ACCENT_TEXT,    // ✅ 배경과 어울리는 진한 톤
+  color: ACCENT_TEXT,
   cursor: "pointer",
   fontSize: 13,
   fontWeight: 600,
 }}
-
           >
             등록
           </button>
@@ -974,6 +996,7 @@ const cardStyle: React.CSSProperties = isEditing
   type="button"
   onClick={() => verifyReply(e.id, r.id)}
   style={{
+    ...NO_TAP,
     padding: "8px 10px",
     borderRadius: 10,
     border: "none",
@@ -1011,6 +1034,7 @@ const cardStyle: React.CSSProperties = isEditing
     type="button"
     onClick={() => setOpenReplyFor(isReplyOpen ? null : e.id)}
 style={{
+    ...NO_TAP,
   width: "100%",
   padding: "10px 12px",
   borderRadius: 14,
@@ -1150,6 +1174,7 @@ function FilePicker({
       <label
         htmlFor={id}
         style={{
+          ...NO_TAP,
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1342,13 +1367,22 @@ function Field({
   label,
   children,
   narrow,
+  isMobile,
 }: {
   label: string;
   children: React.ReactNode;
   narrow?: boolean;
+  isMobile: boolean;
 }) {
   return (
-    <div style={{ flex: 1, minWidth: narrow ? 180 : 220, maxWidth: narrow ? 260 : undefined }}>
+    <div
+      style={{
+        flex: isMobile ? "1 1 100%" : 1,
+        width: isMobile ? "100%" : undefined,
+        minWidth: isMobile ? "100%" : narrow ? 180 : 220,
+        maxWidth: isMobile ? "100%" : narrow ? 260 : undefined,
+      }}
+    >
       <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>{label}</div>
       {children}
     </div>
@@ -1413,14 +1447,17 @@ function ReplyBox({
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8, gap: 8 }}>
         <button
           onClick={onCancel}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 12,
-            border: "1px solid #e5e7eb",
-            background: "#fff",
-            cursor: "pointer",
-            fontSize: 13,
-          }}
+style={{
+  ...NO_TAP,
+  padding: isMobile ? "6px 10px" : "8px 12px",
+  borderRadius: isMobile ? 10 : 12,
+  border: "1px solid #e5e7eb",
+  background: "#fff",
+  cursor: "pointer",
+  fontSize: isMobile ? 12 : 13,
+  fontWeight: isMobile ? 500 : 600,
+  color: "#374151",
+}}
         >
           취소
         </button>
@@ -1434,16 +1471,17 @@ setRc("");
 setRf(null);
           }}
 style={{
-  padding: "8px 12px",
-  borderRadius: 12,
+  ...NO_TAP,
+  padding: isMobile ? "6px 10px" : "8px 12px",
+  borderRadius: isMobile ? 10 : 12,
   borderWidth: 1,
   borderStyle: "solid",
   borderColor: ACCENT_LINE,
   background: ACCENT_SOFT,
   color: ACCENT_TEXT,
   cursor: "pointer",
-  fontSize: 13,
-  fontWeight: 600,
+  fontSize: isMobile ? 12 : 13,
+  fontWeight: isMobile ? 600 : 600,
 }}
         >
           댓글 등록
@@ -1467,12 +1505,17 @@ const inputStyle: React.CSSProperties = {
   lineHeight: "20px",
 };
 
-const linkBtn: React.CSSProperties = {
-  border: "none",
-  background: "transparent",
-  cursor: "pointer",
-  color: "#6b7280",
-  padding: 0,
-  fontSize: 13,
-  fontFamily: "inherit",
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  WebkitAppearance: "none",
+  appearance: "none",
+  backgroundColor: "#fff",
+  paddingRight: 36,
+  backgroundImage:
+    'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 20 20%27 fill=%27none%27%3E%3Cpath d=%27M6 8l4 4 4-4%27 stroke=%27%239ca3af%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E")',
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 12px center",
+  backgroundSize: 16,
+  WebkitTapHighlightColor: "transparent",
+  outline: "none",
 };
