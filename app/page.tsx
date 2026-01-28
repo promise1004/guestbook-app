@@ -26,6 +26,20 @@ type Entry = {
 };
 
 const INDENT = 54;
+const MOBILE_BP = 768;
+
+function useIndent() {
+  const [indent, setIndent] = useState(INDENT);
+
+  useEffect(() => {
+    const apply = () => setIndent(window.innerWidth <= MOBILE_BP ? 0 : INDENT);
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, []);
+
+  return indent;
+}
 
 export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -39,6 +53,7 @@ export default function Home() {
   const [page, setPage] = useState(1);
 const [totalPages, setTotalPages] = useState(1);
 const limit = 5;
+const sideIndent = useIndent();
 
   // ✅ 답글 본인 인증된 replyId 저장
 const [verifiedReplies, setVerifiedReplies] = useState<Record<string, boolean>>({});
@@ -560,7 +575,7 @@ try {
 <div
   style={{
     marginTop: 10,
-    paddingLeft: INDENT,
+    paddingInline: sideIndent,
     whiteSpace: "pre-wrap",
     lineHeight: 1.6,
     fontSize: 15,
@@ -571,7 +586,7 @@ try {
 
 {/* ✅ 여기부터 이미지 출력 */}
 {e.image_url && (
-  <div style={{ marginTop: 12, paddingLeft: INDENT }}>
+  <div style={{ marginTop: 12, paddingInline: sideIndent }}>
     <img
       src={e.image_url}
       alt="첨부 이미지"
@@ -586,7 +601,7 @@ try {
 
               {/* 답글 목록 */}
               {e.replies?.length ? (
-                <div style={{ marginTop: 12, paddingLeft: INDENT, display: "grid", gap: 8 }}>
+                <div style={{ marginTop: 12, paddingInline: sideIndent, display: "grid", gap: 8 }}>
                   {e.replies.map((r) => {
                     const isAdmin = Boolean(r.is_admin);
                     const isEditing = editingReplyId === r.id;
@@ -851,7 +866,7 @@ try {
               ) : null}
 
               {/* 답글 달기 버튼 */}
-              <div style={{ marginTop: 12, paddingLeft: INDENT, display: "flex", gap: 10 }}>
+              <div style={{ marginTop: 12, paddingInline: sideIndent, display: "flex", gap: 10 }}>
 <button
   type="button"
   onClick={() => setOpenReplyFor(isReplyOpen ? null : e.id)}
@@ -871,7 +886,7 @@ try {
               {/* (요청3) 답글 입력 박스: 답글 목록 바로 아래에 붙고, 부드럽게 펼쳐짐 */}
               <div
                 style={{
-                  paddingLeft: INDENT,
+                  paddingInline: sideIndent,
                   overflow: "hidden",
                   maxHeight: isReplyOpen ? 320 : 0,
                   opacity: isReplyOpen ? 1 : 0,
