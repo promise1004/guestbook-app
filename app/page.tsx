@@ -28,6 +28,9 @@ type Entry = {
 const INDENT = 54;
 const MOBILE_BP = 768;
 
+const FONT_STACK =
+  '"Pretendard Variable","Pretendard",system-ui,-apple-system,"Segoe UI","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+
 function useIndent() {
   const [indent, setIndent] = useState(INDENT);
 
@@ -55,8 +58,21 @@ const [totalPages, setTotalPages] = useState(1);
 const limit = 5;
 const sideIndent = useIndent();
 
+// ✅ 관리자 키
+const [adminKey, setAdminKey] = useState("");
+
+// ✅ 관리자 모드 ON/OFF
+const [adminEnabled, setAdminEnabled] = useState(false);
+
+// ✅ 관리자 권한 여부 (둘 다 true일 때만)
+const isAdminMode = useMemo(
+  () => adminEnabled && Boolean(adminKey),
+  [adminEnabled, adminKey]
+);
+
 // ✅ 화면폭으로 모바일 판정 (indent랑 분리)
 const [isMobile, setIsMobile] = useState(false);
+
 useEffect(() => {
   const apply = () => setIsMobile(window.innerWidth <= MOBILE_BP);
   apply();
@@ -64,27 +80,38 @@ useEffect(() => {
   return () => window.removeEventListener("resize", apply);
 }, []);
 
-const pillBtn: React.CSSProperties = isMobile
-  ? {
-      padding: "8px 12px",
-      borderRadius: 999,
-      border: "1px solid #e5e7eb",
-      background: "#fff",
-      fontSize: 12,
-      fontWeight: 800,
-      color: "#374151",
-      cursor: "pointer",
-      lineHeight: 1,
-      WebkitTapHighlightColor: "transparent",
-    }
-  : {
-      border: "none",
-      background: "transparent",
-      cursor: "pointer",
-      color: "#6b7280",
-      padding: 0,
-      fontSize: 13,
-    };
+const baseBtn: React.CSSProperties = {
+  padding: isMobile ? "1px 6px" : "0px",
+  borderRadius: 999,
+
+  borderWidth: isMobile ? 1 : 0,
+  borderStyle: "solid",
+  borderColor: isMobile ? "#e5e7eb" : "transparent",
+
+  background: isMobile ? "#fff" : "transparent",
+  fontSize: isMobile ? 9 : 13,
+  fontWeight: isMobile ? 650 : 600,
+  color: "#6b7280",
+  cursor: "pointer",
+
+  lineHeight: isMobile ? "14px" as any : 1.2, // ✅ 높이 고정 느낌
+  height: isMobile ? 20 : undefined,          // ✅ 세로 덩치 컷
+  display: "inline-flex",                      // ✅ 가운데 정렬
+  alignItems: "center",
+  justifyContent: "center",
+
+  fontFamily: "inherit",
+};
+
+// ✅ 글(방명록 본문) 수정/삭제 버튼
+const entryBtn = baseBtn;
+
+// ✅ 삭제 버튼(색만 변경: borderColor도 “분해된 상태”에서 바꾸므로 경고 없음)
+const entryDelBtn: React.CSSProperties = {
+  ...baseBtn,
+  color: "#ef4444",
+  borderColor: isMobile ? "#fecaca" : "transparent",
+};
 
   // ✅ 답글 본인 인증된 replyId 저장
 const [verifiedReplies, setVerifiedReplies] = useState<Record<string, boolean>>({});
@@ -92,10 +119,6 @@ const [verifiedReplies, setVerifiedReplies] = useState<Record<string, boolean>>(
 // ✅ 어떤 답글을 인증 중인지
 const [verifyReplyId, setVerifyReplyId] = useState<string | null>(null);
 const [verifyPw, setVerifyPw] = useState("");
-
-  // ✅ 관리자 키
-  const [adminKey, setAdminKey] = useState("");
-  const isAdminMode = useMemo(() => Boolean(adminKey), [adminKey]);
 
   // ✅ 답글 인라인 편집 상태
   const [editingReplyId, setEditingReplyId] = useState<string | null>(null);
@@ -111,6 +134,7 @@ const [verifyPw, setVerifyPw] = useState("");
 
   const [isEmbedded, setIsEmbedded] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
 function goPage(p: number) {
   setPage(p);
@@ -122,7 +146,7 @@ useEffect(() => {
   setIsEmbedded(window.self !== window.top);
 }, []);
 
-  function formatDateTime(dateString: string) {
+function formatDateTime(dateString: string) {
   const d = new Date(dateString);
 
   const yyyy = d.getFullYear();
@@ -131,9 +155,8 @@ useEffect(() => {
 
   const hh = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
 
-  return `${yyyy}. ${mm}. ${dd}. ${hh}:${mi}`;
+  return `${yyyy}.${mm}.${dd} · ${hh}:${mi}`;
 }
 
   async function verifyReply(entryId: string, replyId: string) {
@@ -142,7 +165,7 @@ useEffect(() => {
   const res = await fetch(`/api/guestbook/${entryId}/replies/${replyId}/verify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password: pw, adminKey }),
+    body: JSON.stringify({ password: pw, adminKey: isAdminMode ? adminKey : undefined }),
   });
 
   const data = await res.json();
@@ -186,17 +209,26 @@ async function load(p = page) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [page]);
 
-  function setAdmin() {
-    const k = prompt("관리자 키를 입력하세요");
-    if (!k) return;
-    setAdminKey(k);
-    localStorage.setItem("ADMIN_KEY", k);
+function setAdmin() {
+  // 이미 저장된 키가 있으면 바로 ON
+  if (adminKey) {
+    setAdminEnabled(true);
+    return;
   }
+  const k = prompt("관리자 키를 입력하세요");
+  if (!k) return;
+  setAdminKey(k);
+  localStorage.setItem("ADMIN_KEY", k);
+  setAdminEnabled(true);
+}
 
-  function clearAdmin() {
-    setAdminKey("");
-    localStorage.removeItem("ADMIN_KEY");
-  }
+function clearAdmin() {
+  setAdminEnabled(false); // ✅ 여기 추가 (관리자모드 끔)
+  // adminKey는 지워도 되고/유지해도 됨. 원하는대로.
+  // 난 깔끔하게 같이 지우는 쪽 추천:
+  setAdminKey("");
+  localStorage.removeItem("ADMIN_KEY");
+}
 
 async function submitEntry() {
   try {
@@ -211,14 +243,14 @@ async function submitEntry() {
     const res = await fetch("/api/guestbook", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        avatar,
-        password,
-        content,
-        adminKey,
-        image_url, // ✅ DB로 같이 보냄
-      }),
+body: JSON.stringify({
+  name,
+  avatar,
+  password,
+  content,
+  adminKey: isAdminMode ? adminKey : undefined,
+  image_url,
+}),
     });
 
     const data = await res.json();
@@ -262,7 +294,7 @@ async function submitReply(
   fd.set("name", r.name);
   fd.set("password", r.password);
   fd.set("content", r.content);
-  if (adminKey) fd.set("adminKey", adminKey);
+  if (isAdminMode) fd.set("adminKey", adminKey);
   if (file) fd.set("image", file);
 
   const res = await fetch(`/api/guestbook/${entryId}/replies`, {
@@ -299,7 +331,7 @@ async function submitReply(
     const res = await fetch(`/api/guestbook/${entryId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: pw, content: next, adminKey }),
+      body: JSON.stringify({ password: pw, content: next, adminKey: isAdminMode ? adminKey : undefined }),
     });
 
     const data = await res.json();
@@ -317,7 +349,7 @@ async function submitReply(
     const res = await fetch(`/api/guestbook/${entryId}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: pw, adminKey }),
+      body: JSON.stringify({ password: pw, adminKey: isAdminMode ? adminKey : undefined }),
     });
 
     const data = await res.json();
@@ -353,7 +385,7 @@ async function submitReply(
     const res = await fetch(`/api/guestbook/${entryId}/replies/${replyId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: pw, content: next, adminKey }),
+      body: JSON.stringify({ password: pw, content: next, adminKey: isAdminMode ? adminKey : undefined }),
     });
 
     const text = await res.text();
@@ -399,7 +431,7 @@ try {
     const res = await fetch(`/api/guestbook/${entryId}/replies/${replyId}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: pw, adminKey }),
+      body: JSON.stringify({ password: pw, adminKey: isAdminMode ? adminKey : undefined }),
     });
 
     const data = await res.json();
@@ -410,27 +442,35 @@ try {
     load(page);
   }
 
-  return (
-    <div
-  style={{
-    maxWidth: isEmbedded ? 1320 : 920,
-    margin: isMobile ? "16px auto" : "40px auto",
-padding: isMobile ? "0 16px" : "0 16px",
-  }}
->
+return (
+  <div
+style={{
+  maxWidth: isEmbedded ? 1320 : 920,
+  margin: isMobile ? "14px auto" : "40px auto",
+  padding: isMobile ? "0 12px" : "0 16px",
+  fontFamily: FONT_STACK,
+  WebkitTextSizeAdjust: "100%",
+
+  // ✅ 배경/라운드: iframe이면 투명, 단독 페이지면 살짝 바탕
+  background: "transparent",
+  borderRadius: isEmbedded ? 0 : 18,
+}}
+  >
+
+
       {/* 제목 + 관리자 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ fontSize: 22, marginBottom: 14 }}>방명록</h1>
 
-        {!adminKey ? (
-          <button onClick={setAdmin} style={{ ...linkBtn, fontSize: 12 }}>
-            관리자 모드
-          </button>
-        ) : (
-          <button onClick={clearAdmin} style={{ ...linkBtn, fontSize: 12 }}>
-            관리자 해제
-          </button>
-        )}
+{!adminEnabled ? (
+  <button onClick={setAdmin} style={{ ...linkBtn, fontSize: 12 }}>
+    관리자 모드
+  </button>
+) : (
+  <button onClick={clearAdmin} style={{ ...linkBtn, fontSize: 12 }}>
+    관리자 해제
+  </button>
+)}
       </div>
 
       {/* 작성 카드 */}
@@ -544,6 +584,7 @@ padding: isMobile ? "0 16px" : "0 16px",
           borderRadius: 18,
           overflow: "hidden",
           background: "#fff",
+          boxShadow: "none",
         }}
       >
 
@@ -557,13 +598,14 @@ padding: isMobile ? "0 16px" : "0 16px",
           const isReplyOpen = openReplyFor === e.id;
 
           return (
-            <div
-              key={e.id}
-              style={{
-                padding: isMobile ? 12 : 16,
-                borderTop: idx === 0 ? "none" : "1px solid #e5e7eb",
-              }}
-            >
+<div
+  key={e.id}
+  style={{
+    padding: isMobile ? "26px 12px" : "22px 16px",
+    borderTop: idx === 0 ? "none" : "1px solid #eef2f7",
+    background: "#fff",
+  }}
+>
               {/* 헤더 */}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -597,20 +639,18 @@ padding: isMobile ? "0 16px" : "0 16px",
   style={{
     flexShrink: 0,
     display: "flex",
-    flexWrap: isMobile ? "wrap" : "nowrap",
-    gap: 8,
+flexWrap: "nowrap",
+gap: 6,
     justifyContent: "flex-end",
+    paddingRight: isMobile ? 0 : 6,
   }}
 >
-  <button onClick={() => editEntry(e.id)} style={pillBtn}>
-    수정
-  </button>
-  <button
-    onClick={() => deleteEntry(e.id)}
-    style={{ ...pillBtn, color: "#ef4444", borderColor: "#fecaca" }}
-  >
-    삭제
-  </button>
+<button onClick={() => editEntry(e.id)} style={entryBtn}>
+  수정
+</button>
+<button onClick={() => deleteEntry(e.id)} style={entryDelBtn}>
+  삭제
+</button>
 </div>
               </div>
 
@@ -618,6 +658,7 @@ padding: isMobile ? "0 16px" : "0 16px",
 <div
   style={{
     marginTop: 10,
+    marginBottom: 8, // ✅ 추가
     paddingInline: sideIndent,
     whiteSpace: "pre-wrap",
     lineHeight: 1.6,
@@ -629,17 +670,19 @@ padding: isMobile ? "0 16px" : "0 16px",
 
 {/* ✅ 여기부터 이미지 출력 */}
 {e.image_url && (
-  <div style={{ marginTop: 12, paddingInline: sideIndent }}>
-    <img
-      src={e.image_url}
-       loading="lazy"
-      alt="첨부 이미지"
-      style={{
-        maxWidth: "100%",
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-      }}
-    />
+  <div style={{ marginTop: 16, marginBottom: 14, paddingInline: sideIndent, display: "flex", gap: 10 }}>
+<img
+  src={e.image_url}
+  loading="lazy"
+  alt="첨부 이미지"
+  onClick={() => setViewerUrl(e.image_url!)}
+  style={{
+    maxWidth: "100%",
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
+    cursor: "zoom-in",
+  }}
+/>
   </div>
 )}
 
@@ -649,25 +692,24 @@ padding: isMobile ? "0 16px" : "0 16px",
                   {e.replies.map((r) => {
                     const isAdmin = Boolean(r.is_admin);
                     const isEditing = editingReplyId === r.id;
-                    const canManageReply = !!adminKey || !!verifiedReplies[r.id];
+                    const canManageReply = isAdminMode || !!verifiedReplies[r.id];
                     const isDeleteOpen =
                       deleteReplyUi?.entryId === e.id && deleteReplyUi?.replyId === r.id;
 
                     // (요청1) 편집 중 강조 스타일
-                    const cardStyle: React.CSSProperties = isEditing
-                      ? {
-                          padding: 10,
-                          borderRadius: 12,
-                          border: "none",
-                          background: "#fff",
-                          boxShadow: "0 6px 16px rgba(17,24,39,0.08)",
-                        }
-                      : {
-                          padding: 10,
-                          borderRadius: 12,
-                          border: "1px solid #e5e7eb",
-                          background: "#fafafa",
-                        };
+const cardStyle: React.CSSProperties = isEditing
+  ? {
+      padding: 10,
+      borderRadius: 12,
+      border: "1px solid #e5e7eb",
+      background: "#fff",
+    }
+  : {
+      padding: 10,
+      borderRadius: 12,
+      border: "1px solid #e5e7eb",
+      background: "#fafafa",
+    };
 
                     return (
   <div key={r.id} style={cardStyle}>
@@ -686,25 +728,27 @@ padding: isMobile ? "0 16px" : "0 16px",
     <div
       style={{
         display: "flex",
-        gap: 8,
+        gap: isMobile ? 6 : 8,
         alignItems: "center",
         minWidth: 0,
       }}
     >
-      <div
-        style={{
-          fontWeight: 650,
-          fontSize: 13,
-          color: isAdmin ? "#ef4444" : "#111827",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          maxWidth: isMobile ? 180 : 360,
-        }}
-        title={r.name}
-      >
-        {r.name}
-      </div>
+<div
+  style={{
+    fontWeight: 650,
+    fontSize: 14,            // ✅ 닉네임 1pt 업
+    color: isAdmin ? "#ef4444" : "#111827",
+
+    whiteSpace: "normal",    // ✅ 줄바꿈 허용
+    overflow: "visible",
+    textOverflow: "clip",
+    wordBreak: "break-word", // ✅ 긴 닉네임 강제 줄바꿈
+    lineHeight: 1.2,
+  }}
+  title={r.name}
+>
+  {r.name}
+</div>
 
       {isAdmin && (
         <span
@@ -735,47 +779,43 @@ padding: isMobile ? "0 16px" : "0 16px",
   style={{
     flexShrink: 0,
     display: "flex",
-    flexDirection: isMobile ? "column" : "row",   // ✅ 추가/수정
-    alignItems: isMobile ? "flex-end" : "center", // ✅ 추가/수정
-    gap: 8,
+    alignItems: isMobile ? "flex-start" : "center", // ✅ 위로 붙이기
+    gap: isMobile ? 4 : 8,                          // ✅ gap 줄이기
     justifyContent: "flex-end",
-    flexWrap: "nowrap",                           // ✅ wrap은 끄는 걸 추천
+    flexWrap: "nowrap",
+    paddingTop: isMobile ? 2 : 0,                   // ✅ 미세 조정
   }}
 >
-  {isEditing ? (
-    <>
-      <button type="button" onClick={() => saveReply(e.id, r.id)} style={pillBtn}>
-        저장
-      </button>
-      <button type="button" onClick={cancelEditReply} style={pillBtn}>
-        취소
-      </button>
-    </>
-  ) : canManageReply ? (
-    <>
-      <button type="button" onClick={() => startEditReply(r)} style={pillBtn}>
-        수정
-      </button>
-      <button
-        type="button"
-        onClick={() => openDeleteReply(e.id, r.id)}
-        style={{ ...pillBtn, color: "#ef4444", borderColor: "#fecaca" }}
-      >
-        삭제
-      </button>
-    </>
-  ) : (
-    <button
-      type="button"
-      onClick={() => {
-        setVerifyReplyId(r.id);
-        setVerifyPw("");
-      }}
-      style={pillBtn}
-    >
-      본인확인
+{isEditing ? (
+  <>
+    <button type="button" onClick={() => saveReply(e.id, r.id)} style={entryBtn}>
+      저장
     </button>
-  )}
+    <button type="button" onClick={cancelEditReply} style={entryBtn}>
+      취소
+    </button>
+  </>
+) : canManageReply ? (
+  <>
+    <button type="button" onClick={() => startEditReply(r)} style={entryBtn}>
+      수정
+    </button>
+    <button type="button" onClick={() => openDeleteReply(e.id, r.id)} style={entryDelBtn}>
+      삭제
+    </button>
+  </>
+) : (
+  <button
+    type="button"
+    onClick={() => {
+      setVerifyReplyId(r.id);
+      setVerifyPw("");
+    }}
+    style={entryBtn}
+  >
+    본인확인
+  </button>
+)}
 </div>
 </div>   {/* ✅ 헤더(이름/시간 + 버튼 줄) 닫기 */}
 
@@ -791,11 +831,13 @@ padding: isMobile ? "0 16px" : "0 16px",
         <img
           src={r.image_url}
           alt="답글 첨부 이미지"
+          onClick={() => setViewerUrl(r.image_url!)}
           style={{
             maxWidth: "100%",
             borderRadius: 12,
             border: "1px solid #e5e7eb",
             display: "block",
+            cursor: "zoom-in",
           }}
         />
       </div>
@@ -890,7 +932,7 @@ padding: isMobile ? "0 16px" : "0 16px",
       paddingTop: 10,
       borderTop: "1px dashed #e5e7eb",
       display: "flex",
-      gap: 8,
+      gap: isMobile ? 6 : 8,
       alignItems: "center",
       flexWrap: "wrap",
     }}
@@ -938,26 +980,20 @@ padding: isMobile ? "0 16px" : "0 16px",
               ) : null}
 
 {/* 답글 달기 버튼 */}
-<div style={{ marginTop: 12, paddingInline: sideIndent, display: "flex", gap: 10 }}>
+<div style={{ marginTop: 16, marginBottom: 10, paddingInline: sideIndent, display: "flex", gap: 10 }}>
   <button
     type="button"
     onClick={() => setOpenReplyFor(isReplyOpen ? null : e.id)}
-    style={{
-  ...(isMobile ? pillBtn : {
-    padding: "8px 12px",
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    background: "#fff",
-    cursor: "pointer",
-    fontSize: 13,
-    color: "#111827",
-    fontWeight: 700,
-  }),
-  width: isMobile ? "100%" : "auto",
-  display: "flex",
-  justifyContent: "center",
+style={{
+  width: "100%",
+  padding: "10px 12px",
+  borderRadius: 14,
+  border: "1px solid #e5e7eb",
+  background: "#fff",
+  cursor: "pointer",
+  fontSize: 13,
   color: "#111827",
-fontWeight: 700,
+  fontWeight: 600,
 }}
   >
     {isReplyOpen ? "답글 닫기" : "답글 달기"}
@@ -973,6 +1009,7 @@ fontWeight: 700,
                   opacity: isReplyOpen ? 1 : 0,
                   transform: isReplyOpen ? "translateY(0)" : "translateY(-6px)",
                   transition: "max-height 220ms ease, opacity 180ms ease, transform 180ms ease",
+                  paddingBottom: isReplyOpen ? 12 : 0,
                 }}
               >
                 <div style={{ paddingTop: isReplyOpen ? 12 : 0 }}>
@@ -994,10 +1031,41 @@ onSubmit={async (r) => {
                 })}
       </div>
 
-      {/* ✅ 방명록 제일 하단 페이지네이션 */}
+            {/* ✅ 방명록 제일 하단 페이지네이션 */}
       <div style={{ marginTop: 24 }}>
-<Pagination page={page} totalPages={totalPages} onChange={goPage} isMobile={isMobile} />
+        <Pagination page={page} totalPages={totalPages} onChange={goPage} isMobile={isMobile} />
       </div>
+
+      {/* ✅ 이미지 확대 뷰어: Home() return 안에 있어야 함 */}
+      {viewerUrl && (
+        <div
+          onClick={() => setViewerUrl(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.72)",
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            cursor: "zoom-out",
+          }}
+        >
+          <img
+            src={viewerUrl}
+            alt="확대 이미지"
+            style={{
+              maxWidth: "100%",
+              maxHeight: "90vh",
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.25)",
+              display: "block",
+            }}
+            onClick={(ev) => ev.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1013,6 +1081,7 @@ function Pagination({
   onChange: (p: number) => void;
   isMobile: boolean;
 }) {
+
 
   if (totalPages <= 1) return null;
 
@@ -1031,17 +1100,23 @@ function Pagination({
   for (let p = start; p <= end; p++) pages.push(p);
 
 const btn: React.CSSProperties = {
-  minWidth: 32,
-  height: isMobile ? 40 : 30,
-  borderRadius: 10,
-  border: "1px solid #e5e7eb",
+  minWidth: isMobile ? 26 : 32,
+  height: isMobile ? 30 : 30,
+  padding: isMobile ? "0 8px" : "0 10px",
+  borderRadius: isMobile ? 9 : 10,
+
+  // border 경고도 같이 없애려고 분리해서 써줄게
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "#e5e7eb",
+
   background: "#fff",
   cursor: "pointer",
-  fontSize: 12,
-
-  color: "#374151",          // ✅ 추가: 파란 글씨 방지
-  fontWeight: 700,           // ✅ 추가: 가독성
-  outline: "none",           // ✅ 추가: 포커스 테두리 튐 최소화
+  fontSize: isMobile ? 11 : 12,
+  color: "#374151",
+  fontWeight: 700,
+  outline: "none",
+  fontFamily: "inherit",
 };
 
 const active: React.CSSProperties = {
@@ -1062,7 +1137,7 @@ const active: React.CSSProperties = {
     <div
       style={{
         display: "flex",
-        gap: 8,
+        gap: isMobile ? 6 : 8,
         justifyContent: "center",
         marginTop: 16,
         flexWrap: "wrap",
@@ -1240,6 +1315,7 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
   background: "#fff",
   boxSizing: "border-box",
+  fontFamily: "inherit",
 };
 
 const linkBtn: React.CSSProperties = {
@@ -1249,4 +1325,5 @@ const linkBtn: React.CSSProperties = {
   color: "#6b7280",
   padding: 0,
   fontSize: 13,
+  fontFamily: "inherit",
 };
