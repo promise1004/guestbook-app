@@ -444,19 +444,28 @@ try {
 
 return (
   <div
-style={{
-  maxWidth: isEmbedded ? 1320 : 920,
-  margin: isMobile ? "14px auto" : "40px auto",
-  padding: isMobile ? "0 12px" : "0 16px",
-  fontFamily: FONT_STACK,
-  WebkitTextSizeAdjust: "100%",
+    style={{
+      // ✅ PC/모바일 모두 폭 조금 키우기
+      // - PC: 920 → 980 (살짝 넓게)
+      // - iframe: 1320 → 1440 (살짝 넓게)
+      // - 모바일: 100%로 꽉 채움
+      maxWidth: isMobile ? "100%" : isEmbedded ? 1440 : 980,
 
-  // ✅ 배경/라운드: iframe이면 투명, 단독 페이지면 살짝 바탕
-  background: "transparent",
-  borderRadius: isEmbedded ? 0 : 18,
-}}
+      // ✅ 모바일은 위 여백만 살짝, 좌우는 꽉
+      margin: isMobile ? "10px auto" : "40px auto",
+
+      // ✅ 모바일 좌우 여백 줄여서 “가로가 더 커 보이게”
+      padding: isMobile ? "0 6px" : "0 18px",
+
+      fontFamily: FONT_STACK,
+      WebkitTextSizeAdjust: "100%",
+
+      background: "transparent",
+
+      // ✅ 모바일에서만 “전체 영역 감싸는 테두리 느낌” 제거
+      borderRadius: isMobile ? 0 : isEmbedded ? 0 : 18,
+    }}
   >
-
 
       {/* 제목 + 관리자 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -513,14 +522,15 @@ style={{
           </Field>
 
             {/* ✅ 여기 추가: 이미지 첨부 */}
-  <Field label="사진 첨부" narrow>
-    <input
-  type="file"
-  accept="image/*"
-  onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
-  style={inputStyle}
-/>
-  </Field>
+<Field label="사진 첨부" narrow>
+  <FilePicker
+    file={imageFile}
+    onChange={(f) => setImageFile(f)}
+    isMobile={isMobile}
+    label="파일 선택"
+  />
+</Field>
+
         </div>
 
         <div style={{ marginTop: 10 }}>
@@ -577,16 +587,21 @@ style={{
       </div>
 
       {/* 리스트 카드 */}
-      <div
-        style={{
-          marginTop: 16,
-          border: "1px solid #e5e7eb",
-          borderRadius: 18,
-          overflow: "hidden",
-          background: "#fff",
-          boxShadow: "none",
-        }}
-      >
+<div
+  style={{
+    marginTop: 16,
+
+    // ✅ 모바일에서만 바깥 테두리 제거 (구분선은 각 아이템 borderTop이라 그대로 남음)
+    border: isMobile ? "none" : "1px solid #e5e7eb",
+
+    // ✅ 모바일에서만 둥근 모서리 제거 (액자 느낌 제거)
+    borderRadius: isMobile ? 0 : 18,
+
+    overflow: "hidden",
+    background: "#fff",
+    boxShadow: "none",
+  }}
+>
 
         {entries.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "#6b7280" }}>
@@ -1070,6 +1085,116 @@ onSubmit={async (r) => {
   );
 }
 
+function FilePicker({
+  file,
+  onChange,
+  isMobile,
+  label = "사진 첨부",
+}: {
+  file: File | null;
+  onChange: (f: File | null) => void;
+  isMobile: boolean;
+  label?: string;
+}) {
+  const id = React.useId();
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        border: "1px solid #e5e7eb",
+        borderRadius: 12,
+        padding: isMobile ? "8px 10px" : "10px 12px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        background: "#fff",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* 실제 input은 숨김 */}
+      <input
+        id={id}
+        type="file"
+        accept="image/*"
+        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0, 0, 0, 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      />
+
+      {/* 버튼처럼 보이는 label */}
+      <label
+        htmlFor={id}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: isMobile ? "6px 10px" : "7px 12px",
+          borderRadius: 10,
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: "#e5e7eb",
+          background: "#f9fafb",
+          cursor: "pointer",
+          fontSize: isMobile ? 12 : 13,
+          fontWeight: 700,
+          color: "#111827",
+          flexShrink: 0,
+          lineHeight: 1,
+          userSelect: "none",
+        }}
+      >
+        {label}
+      </label>
+
+      {/* 파일명 */}
+      <div
+        style={{
+          minWidth: 0,
+          flex: 1,
+          fontSize: isMobile ? 12 : 13,
+          color: file ? "#374151" : "#9ca3af",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+        title={file?.name ?? ""}
+      >
+        {file ? file.name : "선택된 파일 없음"}
+      </div>
+
+      {/* 선택 해제 */}
+      {file ? (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          style={{
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            color: "#6b7280",
+            fontSize: isMobile ? 12 : 13,
+            fontWeight: 700,
+            padding: "4px 6px",
+            lineHeight: 1,
+          }}
+        >
+          삭제
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function Pagination({
   page,
   totalPages,
@@ -1259,12 +1384,14 @@ function ReplyBox({
         style={{ ...inputStyle, marginTop: 8, minHeight: 70, resize: "vertical" as any }}
       />
 
-      <input
-  type="file"
-  accept="image/*"
-  onChange={(e) => setRf(e.target.files?.[0] ?? null)}
-  style={{ ...inputStyle, marginTop: 8 }}
-/>
+<div style={{ marginTop: 8 }}>
+  <FilePicker
+    file={rf}
+    onChange={(f) => setRf(f)}
+    isMobile={isMobile}
+    label="파일 선택"
+  />
+</div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8, gap: 8 }}>
         <button
