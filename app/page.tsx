@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type Reply = {
@@ -54,7 +54,37 @@ export default function Home() {
 const [totalPages, setTotalPages] = useState(1);
 const limit = 5;
 const sideIndent = useIndent();
-const isMobile = sideIndent === 0;
+
+// ✅ 화면폭으로 모바일 판정 (indent랑 분리)
+const [isMobile, setIsMobile] = useState(false);
+useEffect(() => {
+  const apply = () => setIsMobile(window.innerWidth <= MOBILE_BP);
+  apply();
+  window.addEventListener("resize", apply);
+  return () => window.removeEventListener("resize", apply);
+}, []);
+
+const pillBtn: React.CSSProperties = isMobile
+  ? {
+      padding: "8px 12px",
+      borderRadius: 999,
+      border: "1px solid #e5e7eb",
+      background: "#fff",
+      fontSize: 12,
+      fontWeight: 800,
+      color: "#374151",
+      cursor: "pointer",
+      lineHeight: 1,
+      WebkitTapHighlightColor: "transparent",
+    }
+  : {
+      border: "none",
+      background: "transparent",
+      cursor: "pointer",
+      color: "#6b7280",
+      padding: 0,
+      fontSize: 13,
+    };
 
   // ✅ 답글 본인 인증된 replyId 저장
 const [verifiedReplies, setVerifiedReplies] = useState<Record<string, boolean>>({});
@@ -81,7 +111,6 @@ const [verifyPw, setVerifyPw] = useState("");
 
   const [isEmbedded, setIsEmbedded] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [replyImageByEntry, setReplyImageByEntry] = useState<Record<string, File | null>>({});
 
 function goPage(p: number) {
   setPage(p);
@@ -386,7 +415,7 @@ try {
   style={{
     maxWidth: isEmbedded ? 1320 : 920,
     margin: isMobile ? "16px auto" : "40px auto",
-padding: isMobile ? "0 12px" : "0 16px",
+padding: isMobile ? "0 16px" : "0 16px",
   }}
 >
       {/* 제목 + 관리자 */}
@@ -504,8 +533,7 @@ padding: isMobile ? "0 12px" : "0 16px",
 </div>
 
 <div style={{ marginTop: 20, marginBottom: 20 }}>
-        <Pagination page={page} totalPages={totalPages} onChange={goPage}
-        />
+<Pagination page={page} totalPages={totalPages} onChange={goPage} isMobile={isMobile} />
       </div>
 
       {/* 리스트 카드 */}
@@ -554,30 +582,32 @@ padding: isMobile ? "0 12px" : "0 16px",
                     {e.avatar}
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+  {/* 윗줄: 닉네임 */}
   <div style={{ fontWeight: 700 }}>{e.name}</div>
+
+  {/* 아랫줄: 날짜 */}
   <div style={{ fontSize: 12, color: "#acacac" }}>
     {formatDateTime(e.created_at)}
   </div>
 </div>
                 </div>
 
-                <div
+<div
   style={{
+    flexShrink: 0,
     display: "flex",
-    gap: 10,
-    alignItems: "center",
-
-    whiteSpace: "nowrap", // ✅ 줄바꿈 방지
-    flexShrink: 0,        // ✅ 모바일에서 이 영역 안 줄어들게
+    flexWrap: isMobile ? "wrap" : "nowrap",
+    gap: 8,
+    justifyContent: "flex-end",
   }}
 >
-  <button onClick={() => editEntry(e.id)} style={linkBtn}>
+  <button onClick={() => editEntry(e.id)} style={pillBtn}>
     수정
   </button>
   <button
     onClick={() => deleteEntry(e.id)}
-    style={{ ...linkBtn, color: "#ef4444" }}
+    style={{ ...pillBtn, color: "#ef4444", borderColor: "#fecaca" }}
   >
     삭제
   </button>
@@ -602,6 +632,7 @@ padding: isMobile ? "0 12px" : "0 16px",
   <div style={{ marginTop: 12, paddingInline: sideIndent }}>
     <img
       src={e.image_url}
+       loading="lazy"
       alt="첨부 이미지"
       style={{
         maxWidth: "100%",
@@ -614,7 +645,7 @@ padding: isMobile ? "0 12px" : "0 16px",
 
               {/* 답글 목록 */}
               {e.replies?.length ? (
-                <div style={{ marginTop: 12, paddingInline: sideIndent, display: "grid", gap: 8 }}>
+                <div style={{ marginTop: 14, paddingInline: sideIndent, display: "grid", gap: 8 }}>
                   {e.replies.map((r) => {
                     const isAdmin = Boolean(r.is_admin);
                     const isEditing = editingReplyId === r.id;
@@ -640,87 +671,115 @@ padding: isMobile ? "0 12px" : "0 16px",
 
                     return (
   <div key={r.id} style={cardStyle}>
-    {/* ✅ 헤더: (닉네임/뱃지) + (버튼 1세트) */}
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <div
+    {/* ✅ 헤더: 모바일에서는 2줄로 깔끔하게 */}
+<div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    alignItems: isMobile ? "flex-start" : "center",
+  }}
+>
+  {/* 왼쪽: 이름(윗줄) + 시간(아랫줄) */}
+  <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+    {/* 윗줄: 이름 + 관리자 뱃지 */}
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        alignItems: "center",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          fontWeight: 650,
+          fontSize: 13,
+          color: isAdmin ? "#ef4444" : "#111827",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          maxWidth: isMobile ? 180 : 360,
+        }}
+        title={r.name}
+      >
+        {r.name}
+      </div>
+
+      {isAdmin && (
+        <span
           style={{
-            fontWeight: 650,
-            fontSize: 13,
-            color: isAdmin ? "#ef4444" : "#111827",
+            fontSize: 11,
+            padding: "2px 6px",
+            borderRadius: 999,
+            background: "#ffffff",
+            color: "#111827",
+            fontWeight: 700,
+            border: "1px solid #e5e7eb",
+            whiteSpace: "nowrap",
           }}
         >
-          {r.name}
-        </div>
-
-        {isAdmin && (
-          <span
-            style={{
-              fontSize: 11,
-              padding: "2px 6px",
-              borderRadius: 999,
-              background: "#ffffff",
-              color: "#111827",
-              fontWeight: 700,
-              border: "1px solid #e5e7eb",
-            }}
-          >
-            관리자
-          </span>
-        )}
-
-          {/* ✅ 답글 작성시간 */}
-  <div style={{ fontSize: 12, color: "#acacac" }}>
-    {formatDateTime(r.created_at)}
-  </div>
-</div>
-
-      {/* ✅ 버튼은 여기 1세트만 */}
-      {isEditing ? (
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button
-            onClick={() => saveReply(e.id, r.id)}
-            style={{ ...linkBtn, fontSize: 12, color: "#111827", fontWeight: 700 }}
-          >
-            저장
-          </button>
-          <button onClick={cancelEditReply} style={{ ...linkBtn, fontSize: 12 }}>
-            취소
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {canManageReply ? (
-            <>
-              <button onClick={() => startEditReply(r)} style={{ ...linkBtn, fontSize: 12 }}>
-                수정
-              </button>
-              <button
-                onClick={() => openDeleteReply(e.id, r.id)}
-                style={{ ...linkBtn, fontSize: 12, color: "#ef4444" }}
-              >
-                삭제
-              </button>
-            </>
-          ) : (
-<button
-  type="button"
-  onClick={() => {
-    console.log("본인확인 클릭됨", r.id);
-    setVerifyReplyId(r.id);
-    setVerifyPw("");
-  }}
-  style={{ ...linkBtn, fontSize: 12 }}
->
-  본인확인
-</button>
-
-          )}
-        </div>
+          관리자
+        </span>
       )}
     </div>
 
-    {/* ✅ 내용/편집 */}
+    {/* 아랫줄: 시간 */}
+    <div style={{ fontSize: 12, color: "#acacac", whiteSpace: "nowrap" }}>
+      {formatDateTime(r.created_at)}
+    </div>
+  </div>
+
+  {/* 오른쪽: 버튼 (줄바꿈 방지) */}
+<div
+  style={{
+    flexShrink: 0,
+    display: "flex",
+    flexDirection: isMobile ? "column" : "row",   // ✅ 추가/수정
+    alignItems: isMobile ? "flex-end" : "center", // ✅ 추가/수정
+    gap: 8,
+    justifyContent: "flex-end",
+    flexWrap: "nowrap",                           // ✅ wrap은 끄는 걸 추천
+  }}
+>
+  {isEditing ? (
+    <>
+      <button type="button" onClick={() => saveReply(e.id, r.id)} style={pillBtn}>
+        저장
+      </button>
+      <button type="button" onClick={cancelEditReply} style={pillBtn}>
+        취소
+      </button>
+    </>
+  ) : canManageReply ? (
+    <>
+      <button type="button" onClick={() => startEditReply(r)} style={pillBtn}>
+        수정
+      </button>
+      <button
+        type="button"
+        onClick={() => openDeleteReply(e.id, r.id)}
+        style={{ ...pillBtn, color: "#ef4444", borderColor: "#fecaca" }}
+      >
+        삭제
+      </button>
+    </>
+  ) : (
+    <button
+      type="button"
+      onClick={() => {
+        setVerifyReplyId(r.id);
+        setVerifyPw("");
+      }}
+      style={pillBtn}
+    >
+      본인확인
+    </button>
+  )}
+</div>
+</div>   {/* ✅ 헤더(이름/시간 + 버튼 줄) 닫기 */}
+
+{/* ✅ 내용/편집 */}
 {!isEditing ? (
   <>
     <div style={{ marginTop: 6, whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.5 }}>
@@ -878,25 +937,32 @@ padding: isMobile ? "0 12px" : "0 16px",
                 </div>
               ) : null}
 
-              {/* 답글 달기 버튼 */}
-              <div style={{ marginTop: 12, paddingInline: sideIndent, display: "flex", gap: 10 }}>
-<button
-  type="button"
-  onClick={() => setOpenReplyFor(isReplyOpen ? null : e.id)}
-                  style={{
-  padding: "8px 12px",
-  borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  background: "#fff",
-  cursor: "pointer",
-  fontSize: 13,
-  color: "#111827",     // ✅ 추가
-  fontWeight: 700,      // ✅ 추가
+{/* 답글 달기 버튼 */}
+<div style={{ marginTop: 12, paddingInline: sideIndent, display: "flex", gap: 10 }}>
+  <button
+    type="button"
+    onClick={() => setOpenReplyFor(isReplyOpen ? null : e.id)}
+    style={{
+  ...(isMobile ? pillBtn : {
+    padding: "8px 12px",
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+    cursor: "pointer",
+    fontSize: 13,
+    color: "#111827",
+    fontWeight: 700,
+  }),
+  width: isMobile ? "100%" : "auto",
+  display: "flex",
+  justifyContent: "center",
+  color: "#111827",
+fontWeight: 700,
 }}
-                >
-                  답글 달기
-                </button>
-              </div>
+  >
+    {isReplyOpen ? "답글 닫기" : "답글 달기"}
+  </button>
+</div>
 
               {/* (요청3) 답글 입력 박스: 답글 목록 바로 아래에 붙고, 부드럽게 펼쳐짐 */}
               <div
@@ -912,10 +978,12 @@ padding: isMobile ? "0 12px" : "0 16px",
                 <div style={{ paddingTop: isReplyOpen ? 12 : 0 }}>
                   {isReplyOpen ? (
 <ReplyBox
-  onSubmit={async (r) => {
-    const ok = await submitReply(e.id, r, r.file ?? null);
-    if (ok) setOpenReplyFor(null);
-  }}
+  isMobile={isMobile}
+onSubmit={async (r) => {
+  const { file, ...payload } = r;
+  const ok = await submitReply(e.id, payload, file ?? null);
+  if (ok) setOpenReplyFor(null);
+}}
   onCancel={() => setOpenReplyFor(null)}
 />
                   ) : null}
@@ -928,8 +996,7 @@ padding: isMobile ? "0 12px" : "0 16px",
 
       {/* ✅ 방명록 제일 하단 페이지네이션 */}
       <div style={{ marginTop: 24 }}>
-        <Pagination page={page} totalPages={totalPages} onChange={goPage}
-        />
+<Pagination page={page} totalPages={totalPages} onChange={goPage} isMobile={isMobile} />
       </div>
     </div>
   );
@@ -939,11 +1006,14 @@ function Pagination({
   page,
   totalPages,
   onChange,
+  isMobile,
 }: {
   page: number;
   totalPages: number;
   onChange: (p: number) => void;
+  isMobile: boolean;
 }) {
+
   if (totalPages <= 1) return null;
 
   const windowSize = 5;
@@ -962,7 +1032,7 @@ function Pagination({
 
 const btn: React.CSSProperties = {
   minWidth: 32,
-  height: 30,
+  height: isMobile ? 40 : 30,
   borderRadius: 10,
   border: "1px solid #e5e7eb",
   background: "#fff",
@@ -1071,9 +1141,11 @@ function Field({
 function ReplyBox({
   onSubmit,
   onCancel,
+  isMobile,
 }: {
-  onSubmit: (r: { name: string; password: string; content: string; file?: File | null }) => void
+  onSubmit: (r: { name: string; password: string; content: string; file?: File | null }) => void;
   onCancel: () => void;
+  isMobile: boolean;
 }) {
   const [rn, setRn] = useState("");
   const [rp, setRp] = useState("");
@@ -1082,7 +1154,14 @@ function ReplyBox({
 
   return (
     <div style={{ marginTop: 0 }}>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div
+  style={{
+    display: "grid",
+    gap: 10,
+    gridTemplateColumns: isMobile ? "1fr" : "1fr 220px",
+    alignItems: "center",
+  }}
+>
         <input
           placeholder="답글 닉네임"
           value={rn}
@@ -1094,7 +1173,7 @@ function ReplyBox({
           type="password"
           value={rp}
           onChange={(e) => setRp(e.target.value)}
-          style={{ ...inputStyle, maxWidth: 220 }}
+          style={inputStyle}
         />
       </div>
 
