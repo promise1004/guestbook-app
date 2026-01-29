@@ -255,6 +255,58 @@ function MultiFilePicker({
   );
 }
 
+function LazyImg({
+  src,
+  alt = "",
+  className,
+  style,
+  onClick,
+}: {
+  src: string;
+  alt?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  onClick?: () => void;
+}) {
+  const ref = useRef<HTMLImageElement | null>(null);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    // 이미 브라우저가 lazy 로드했더라도, decode/paint 타이밍을 더 안정적으로 잡기 위해
+    const io = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0];
+        if (e.isIntersecting) {
+          setShow(true);
+          io.disconnect();
+        }
+      },
+      { root: null, rootMargin: "600px 0px", threshold: 0.01 }
+    );
+
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <img
+      ref={ref}
+      src={show ? src : "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="}
+      data-src={src}
+      alt={alt}
+      className={className}
+      style={style}
+      loading="lazy"
+      decoding="async"
+      fetchPriority="low"
+      onClick={onClick}
+    />
+  );
+}
+
 export default function ProfileDetailPage() {
   const params = useParams();
 const id = typeof (params as any)?.id === "string" ? (params as any).id : undefined;
@@ -439,19 +491,47 @@ const [verifyCommentPw, setVerifyCommentPw] = useState("");
     if (viewerOpen) setTimeout(() => viewerCloseBtnRef.current?.focus(), 0);
   }, [viewerOpen]);
 
-  // ✅ 댓글 목록이 바뀌면(로드되면) 답글도 전부 미리 로드 → 답글 상시 노출
+// ✅ 답글 "전부 선로딩" 제거 → 3개만 먼저, 나머지는 천천히(버벅임 크게 감소)
 useEffect(() => {
   if (!id) return;
   if (!comments.length) return;
 
+  let cancelled = false;
+
+  const todo = comments
+    .map((c) => c.id)
+    .filter((cid) => !repliesByComment[cid]);
+
+  const first = todo.slice(0, 3);
+  const rest = todo.slice(3);
+
   (async () => {
-    // 아직 캐시에 없는 댓글만 로드
-    for (const c of comments) {
-      if (!repliesByComment[c.id]) {
-        await loadReplies(c.id);
+    // 1) 우선 3개만
+    for (const cid of first) {
+      if (cancelled) return;
+      await loadReplies(cid);
+    }
+
+    // 2) 나머지는 브라우저가 한가할 때 조금씩
+    const run = async () => {
+      for (const cid of rest) {
+        if (cancelled) return;
+        await loadReplies(cid);
+        await new Promise((r) => setTimeout(r, 120)); // ✅ 작은 텀 (스크롤 버벅임 완화)
       }
+    };
+
+    const ric = (window as any).requestIdleCallback as undefined | ((cb: Function) => any);
+    if (ric) {
+      ric(() => run());
+    } else {
+      setTimeout(() => run(), 400);
     }
   })();
+
+  return () => {
+    cancelled = true;
+  };
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [id, comments]);
 
@@ -824,7 +904,7 @@ return (
                   onClick={() => openViewer(u)}
                   aria-label="이미지 크게 보기"
                 >
-                  <img src={u} alt="" loading="lazy" />
+                  <LazyImg src={u} alt="" />
                   {isMoreTile ? <span className="moreBadge">+{moreCount}</span> : null}
                 </button>
               );
@@ -877,7 +957,7 @@ return (
                 onClick={() => openViewer(u)}
                 aria-label="이미지 크게 보기"
               >
-                <img src={u} alt="" loading="lazy" />
+                <LazyImg src={u} alt="" />
                 {isMoreTile ? <span className="moreBadge">+{moreCount}</span> : null}
               </button>
             );
@@ -1691,11 +1771,11 @@ return (
 
                 {images.length ? (
                   <div className="attach">
-                    {images.map((src, idx) => (
-                      <button type="button" className="imgBtn" key={`${src}-${idx}`} onClick={() => openViewer(src)}>
-                        <img src={src} alt="" loading="lazy" />
-                      </button>
-                    ))}
+{images.map((src, idx) => (
+  <button type="button" className="imgBtn" key={`${src}-${idx}`} onClick={() => openViewer(src)}>
+    <LazyImg src={src} alt="" />
+  </button>
+))}
                   </div>
                 ) : null}
               </section>
@@ -1915,6 +1995,10 @@ const css = `
   scrollbar-width:none;
 }
 .bd::-webkit-scrollbar{ width:0; height:0; }
+
+.bd{
+  -webkit-overflow-scrolling: touch;
+}
 
 .wrap{
   max-width:980px;
