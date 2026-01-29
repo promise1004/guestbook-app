@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useId } from "react";
 import { useParams } from "next/navigation";
 import { useRouter, useSearchParams } from "next/navigation";
+import { PAGE_BG, FONT_STACK } from "@/lib/pbTheme";
 
 type UploadResult = { url?: string; error?: string };
 
@@ -26,6 +27,7 @@ type Reply = {
   content: string;
   is_admin?: boolean;
   created_at: string;
+  image_urls?: string[] | null;
 };
 
 type Comment = {
@@ -40,6 +42,218 @@ type Comment = {
   // ✅ 답글 목록 추가
   replies?: Reply[];
 };
+
+const CONTROL_H = 40;
+const CONTROL_H_M = 38;
+
+const ACCENT_SOFT = "#fff9e8";
+const ACCENT_LINE = "#ffe6ad";
+const ACCENT_TEXT = "#7a5200";
+
+const NO_TAP: React.CSSProperties = {
+  WebkitTapHighlightColor: "transparent",
+  WebkitTouchCallout: "none",
+  outline: "none",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  border: "1px solid #e5e7eb",
+  borderRadius: 12,
+  padding: "10px 12px",
+  fontSize: 14,
+  outline: "none",
+  background: "#fff",
+  boxSizing: "border-box",
+  fontFamily: "inherit",
+  height: CONTROL_H,
+  lineHeight: "20px",
+};
+
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  WebkitAppearance: "none",
+  appearance: "none",
+  backgroundColor: "#fff",
+  paddingRight: 36,
+  backgroundImage:
+    'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 20 20%27 fill=%27none%27%3E%3Cpath d=%27M6 8l4 4 4-4%27 stroke=%27%239ca3af%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E")',
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 12px center",
+  backgroundSize: 16,
+  WebkitTapHighlightColor: "transparent",
+  outline: "none",
+};
+
+function formatKTime(iso: string) {
+  const d = new Date(iso);
+
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .formatToParts(d)
+    .reduce<Record<string, string>>((acc, p) => {
+      if (p.type !== "literal") acc[p.type] = p.value;
+      return acc;
+    }, {});
+
+  return `${parts.year}.${parts.month}.${parts.day} · ${parts.hour}:${parts.minute}`;
+}
+
+function Field({
+  label,
+  children,
+  narrow,
+  isMobile,
+}: {
+  label: string;
+  children: React.ReactNode;
+  narrow?: boolean;
+  isMobile: boolean;
+}) {
+  return (
+    <div
+      style={{
+        flex: isMobile ? "1 1 100%" : 1,
+        width: isMobile ? "100%" : undefined,
+        minWidth: isMobile ? "100%" : narrow ? 180 : 220,
+        maxWidth: isMobile ? "100%" : narrow ? 260 : undefined,
+      }}
+    >
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+/** ✅ 방명록 FilePicker랑 “똑같은 스타일”인데, 멀티 선택(여러장) 버전 */
+function MultiFilePicker({
+  files,
+  onChange,
+  isMobile,
+  label = "파일선택",
+}: {
+  files: File[];
+  onChange: (files: File[]) => void;
+  isMobile: boolean;
+  label?: string;
+}) {
+  const id = useId();
+  const H = isMobile ? CONTROL_H_M : CONTROL_H;
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: "#e5e7eb",
+        borderRadius: 12,
+        padding: 0,
+        height: H,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        background: "#fff",
+        boxSizing: "border-box",
+        overflow: "hidden",
+      }}
+    >
+      <input
+        id={id}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(e) => {
+          const list = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+          const merged = [...files, ...list].slice(0, 6);
+          onChange(merged);
+          e.currentTarget.value = "";
+        }}
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0, 0, 0, 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      />
+
+      <label
+        htmlFor={id}
+        style={{
+          ...NO_TAP,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: H,
+          padding: isMobile ? "0 10px" : "0 12px",
+          borderRadius: 0,
+          border: "none",
+          background: ACCENT_SOFT,
+          color: ACCENT_TEXT,
+          cursor: "pointer",
+          fontSize: isMobile ? 12 : 13,
+          fontWeight: 600,
+          flexShrink: 0,
+          userSelect: "none",
+          lineHeight: 1,
+        }}
+      >
+        {label}
+      </label>
+
+      <div
+        style={{
+          minWidth: 0,
+          flex: 1,
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          fontSize: isMobile ? 12 : 13,
+          color: files.length ? "#374151" : "#9ca3af",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          paddingRight: 10,
+        }}
+        title={files.map((f) => f.name).join(", ")}
+      >
+        {files.length ? `${files.length}장 선택됨` : "선택된 파일 없음"}
+      </div>
+
+      {files.length ? (
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          style={{
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            color: "#6b7280",
+            fontSize: isMobile ? 12 : 13,
+            fontWeight: 700,
+            padding: "0 10px",
+            height: "100%",
+            lineHeight: 1,
+          }}
+        >
+          삭제
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 export default function ProfileDetailPage() {
   const params = useParams();
@@ -93,6 +307,15 @@ const id = typeof (params as any)?.id === "string" ? (params as any).id : undefi
 const sp = useSearchParams();
 const embed = sp.get("embed") === "1";
 
+const [isMobile, setIsMobile] = useState(false);
+
+useEffect(() => {
+  const apply = () => setIsMobile(window.innerWidth <= 768);
+  apply();
+  window.addEventListener("resize", apply);
+  return () => window.removeEventListener("resize", apply);
+}, []);
+
 // ✅ (추가) 마지막으로 본 상세 id 저장 (F5 복귀용)
 useEffect(() => {
   if (!id) return;
@@ -125,15 +348,24 @@ const orderRef = useRef<string[]>([]);
   const [repliesByComment, setRepliesByComment] = useState<Record<string, Reply[]>>({});
 
   // 답글 작성 폼
-  const [rName, setRName] = useState("");
-  const [rAvatar, setRAvatar] = useState("🙂");
-  const [rPw, setRPw] = useState("");
-  const [rContent, setRContent] = useState("");
+const [rName, setRName] = useState("");
+const [rAvatar, setRAvatar] = useState("🙂");
+const [rPw, setRPw] = useState("");
+const [rContent, setRContent] = useState("");
+
+// ✅ 답글 첨부(댓글과 동일 멀티)
+const [rFiles, setRFiles] = useState<File[]>([]);
+const rPreviews = useMemo(() => rFiles.map((f) => URL.createObjectURL(f)), [rFiles]);
 
   // 답글 본인확인(verify) 상태
   const [verifiedReplyIds, setVerifiedReplyIds] = useState<Record<string, boolean>>({});
   const [verifyReplyId, setVerifyReplyId] = useState<string | null>(null);
   const [verifyPw, setVerifyPw] = useState("");
+
+  // ✅ 댓글 본인확인(verify) 상태
+const [verifiedCommentIds, setVerifiedCommentIds] = useState<Record<string, boolean>>({});
+const [verifyCommentId, setVerifyCommentId] = useState<string | null>(null);
+const [verifyCommentPw, setVerifyCommentPw] = useState("");
 
   // 답글 수정 상태
   const [editingReplyId, setEditingReplyId] = useState<string | null>(null);
@@ -187,6 +419,11 @@ const orderRef = useRef<string[]>([]);
   useEffect(() => {
     return () => previews.forEach((u) => URL.revokeObjectURL(u));
   }, [previews]);
+
+  useEffect(() => {
+  return () => rPreviews.forEach((u) => URL.revokeObjectURL(u));
+}, [rPreviews]);
+
   useEffect(() => {
     return () => editPreviews.forEach((u) => URL.revokeObjectURL(u));
   }, [editPreviews]);
@@ -352,8 +589,15 @@ function renderComment(c: Comment, keyPrefix = "") {
   const likes = c.likes_count ?? 0;
   const isBest = bestLikes >= 1 && likes === bestLikes;
 
-  return (
-    <div className={`item ${isBest ? "best" : ""} ${keyPrefix ? "featured" : ""}`} key={`${keyPrefix}${c.id}`}>
+const isFeatured = !!keyPrefix;
+const isFeaturedInstance = !!keyPrefix;
+const canManageComment = isAdmin || !!verifiedCommentIds[c.id];
+
+return (
+  <div
+    className={`item ${isFeatured && isBest ? "bestFeatured" : ""} ${keyPrefix ? "featured" : ""}`}
+    key={`${keyPrefix}${c.id}`}
+  >
       <div className="headRow">
         <div className="left">
           <div className="avatar" aria-hidden="true">
@@ -362,42 +606,100 @@ function renderComment(c: Comment, keyPrefix = "") {
 
           <div className="meta">
             <div className="nameLine">
-              <span className="name">{c.name}</span>
-              {isBest ? <span className="bestBadge">BEST</span> : null}
-              <span className="time">{new Date(c.created_at).toLocaleString()}</span>
-            </div>
+<span className="name">{c.name}</span>
 
+{/* ✅ Featured(상단 고정)에서는 기존 BEST 배지 유지 */}
+{isFeatured && isBest ? <span className="bestBadge">BEST</span> : null}
+
+{/* ✅ 원본댓글(리스트)에서는 아이콘만 닉 옆에 */}
+{!isFeatured && isBest ? (
+  <span className="bestIcon" title="베스트 댓글" aria-label="베스트 댓글">
+    🏆
+  </span>
+) : null}
+            </div>
+            <div className="timeLine">{formatKTime(c.created_at)}</div>
             {editingId !== c.id ? <div className="cBody">{c.content}</div> : null}
           </div>
         </div>
 
-        <div className="actions">
-          <button
-            className="aBtn like"
-            type="button"
-            onClick={() => likeComment(c.id)}
-            disabled={busyId === c.id || uploading || submitting}
-          >
-            👍 <span className="likeNum">{likes}</span>
-          </button>
+<div className="actions">
+  <button
+    className="aBtn like"
+    type="button"
+    onClick={() => likeComment(c.id)}
+    disabled={busyId === c.id || uploading || submitting}
+  >
+    👍 <span className="likeNum">{likes}</span>
+  </button>
 
-          <button
-            className="aBtn"
-            type="button"
-            onClick={() => setOpenReplyFor(openReplyFor === c.id ? null : c.id)}
-          >
-            {openReplyFor === c.id ? "답글닫기" : "답글달기"}
-          </button>
+  <button
+    className="aBtn"
+    type="button"
+    onClick={() => setOpenReplyFor(openReplyFor === c.id ? null : c.id)}
+  >
+    {openReplyFor === c.id ? "닫기" : "답글"}
+  </button>
 
-          <button className="aBtn" type="button" onClick={() => startEdit(c)} disabled={busyId === c.id}>
-            수정
-          </button>
+  {canManageComment ? (
+    <>
+      <button
+        className="aBtn"
+        type="button"
+        onClick={() => startEdit(c)}
+        disabled={busyId === c.id}
+      >
+        수정
+      </button>
 
-          <button className="aBtn danger" type="button" onClick={() => deleteComment(c.id)} disabled={busyId === c.id}>
-            삭제
-          </button>
-        </div>
+      <button
+        className="aBtn danger"
+        type="button"
+        onClick={() => deleteComment(c.id)}
+        disabled={busyId === c.id}
+      >
+        삭제
+      </button>
+    </>
+  ) : (
+    <button
+      className="aBtn"
+      type="button"
+      onClick={() => {
+        setVerifyCommentId(c.id);
+        setVerifyCommentPw("");
+      }}
+    >
+      본인확인
+    </button>
+  )}
+</div>
       </div>
+
+      {!isAdmin && verifyCommentId === c.id && !canManageComment ? (
+  <div className="verifyInline">
+    <input
+      className="verifyPw"
+      type="password"
+      value={verifyCommentPw}
+      onChange={(e) => setVerifyCommentPw(e.target.value)}
+      placeholder="비밀번호(4자+)"
+    />
+    <button className="verifyBtn" type="button" onClick={() => verifyComment(c.id)}>
+      확인
+    </button>
+    <button
+      className="verifyBtn ghost"
+      type="button"
+      onClick={() => {
+        setVerifyCommentId(null);
+        setVerifyCommentPw("");
+      }}
+    >
+      취소
+    </button>
+  </div>
+) : null}
 
       <div className="textWrap">
         {editingId === c.id ? (
@@ -533,7 +835,7 @@ function renderComment(c: Comment, keyPrefix = "") {
 
       <div className="replies">
         {(repliesByComment[c.id]?.length ?? 0) > 0 ? (
-          <div className="replyList">
+          <div className={`replyList ${isFeaturedInstance ? "bestReply" : "normalReply"}`}>
             {repliesByComment[c.id].map((r) => {
               const isEditing = editingReplyId === r.id;
               const canManage = isAdmin || !!verifiedReplyIds[r.id];
@@ -547,46 +849,75 @@ function renderComment(c: Comment, keyPrefix = "") {
                     </div>
 
                     <div className="replyMeta">
-                      <div className="replyNameLine">
-                        <span className="replyName">{r.name}</span>
-                        <span className="replyTime">{new Date(r.created_at).toLocaleString()}</span>
-                      </div>
+  <div className="replyNameLine">
+    <span className="replyName">{r.name}</span>
+  </div>
+  <div className="replyTimeLine">{formatKTime(r.created_at)}</div>
 
-                      {!isEditing ? (
-                        <div className="replyText">{r.content}</div>
-                      ) : (
-                        <>
-                          <textarea
-                            className="replyEditTa"
-                            value={editReplyText}
-                            onChange={(e) => setEditReplyText(e.target.value)}
-                            placeholder="수정 내용을 입력하세요"
-                          />
+{!isEditing ? (
+  <>
+    <div className="replyText">{r.content}</div>
 
-                          {!isAdmin ? (
-                            <input
-                              className="replyPwIn"
-                              value={editReplyPw}
-                              onChange={(e) => setEditReplyPw(e.target.value)}
-                              placeholder="비밀번호(4자+) 입력 후 저장"
-                              type="password"
-                            />
-                          ) : (
-                            <div className="adminChip">관리자</div>
-                          )}
+    {Array.isArray(r.image_urls) && r.image_urls.length ? (
+      <div className="replyThumbGrid">
+        {(() => {
+          const urls = r.image_urls!;
+          const MAX = 4;
+          const hasMore = urls.length > MAX;
+          const tileUrls = hasMore ? urls.slice(0, MAX) : urls.slice(0, Math.min(urls.length, MAX));
+          const moreCount = hasMore ? urls.length - (MAX - 1) : 0;
 
-                          <div className="replyActions">
-                            <button className="aBtn" type="button" onClick={() => saveReply(c.id, r.id)}>
-                              저장
-                            </button>
-                            <button className="aBtn" type="button" onClick={cancelEditReply}>
-                              취소
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
+          return tileUrls.map((u, i) => {
+            const isMoreTile = hasMore && i === MAX - 1;
+            return (
+              <button
+                type="button"
+                className={`thumb ${isMoreTile ? "more" : ""}`}
+                key={`${u}-${i}`}
+                onClick={() => openViewer(u)}
+                aria-label="이미지 크게 보기"
+              >
+                <img src={u} alt="" loading="lazy" />
+                {isMoreTile ? <span className="moreBadge">+{moreCount}</span> : null}
+              </button>
+            );
+          });
+        })()}
+      </div>
+    ) : null}
+    </>
+  ) : (
+    <>
+      <textarea
+        className="replyEditTa"
+        value={editReplyText}
+        onChange={(e) => setEditReplyText(e.target.value)}
+        placeholder="수정 내용을 입력하세요"
+      />
 
+      {!isAdmin ? (
+        <input
+          className="replyPwIn"
+          value={editReplyPw}
+          onChange={(e) => setEditReplyPw(e.target.value)}
+          placeholder="비밀번호(4자+) 입력 후 저장"
+          type="password"
+        />
+      ) : (
+        <div className="adminChip">관리자</div>
+      )}
+
+      <div className="replyActions">
+        <button className="aBtn" type="button" onClick={() => saveReply(c.id, r.id)}>
+          저장
+        </button>
+        <button className="aBtn" type="button" onClick={cancelEditReply}>
+          취소
+        </button>
+      </div>
+    </>
+  )}
+</div>
                     {!isEditing ? (
                       <div className="replyActions">
                         {canManage ? (
@@ -614,33 +945,33 @@ function renderComment(c: Comment, keyPrefix = "") {
                     ) : null}
                   </div>
 
-                  {!isAdmin && verifyReplyId === r.id && !canManage && !isEditing ? (
-                    <div className="replyVerify">
-                      <input
-                        className="replyPwIn"
-                        type="password"
-                        value={verifyPw}
-                        onChange={(e) => setVerifyPw(e.target.value)}
-                        placeholder="비밀번호(4자+)"
-                      />
-                      <button className="btn primary" type="button" onClick={() => verifyReply(c.id, r.id)}>
-                        확인
-                      </button>
-                      <button
-                        className="btn ghost"
-                        type="button"
-                        onClick={() => {
-                          setVerifyReplyId(null);
-                          setVerifyPw("");
-                        }}
-                      >
-                        취소
-                      </button>
-                    </div>
-                  ) : null}
+{!isAdmin && verifyReplyId === r.id && !canManage && !isEditing ? (
+  <div className="verifyInline">
+    <input
+      className="verifyPw"
+      type="password"
+      value={verifyPw}
+      onChange={(e) => setVerifyPw(e.target.value)}
+      placeholder="비밀번호(4자+)"
+    />
+    <button className="verifyBtn" type="button" onClick={() => verifyReply(c.id, r.id)}>
+      확인
+    </button>
+    <button
+      className="verifyBtn ghost"
+      type="button"
+      onClick={() => {
+        setVerifyReplyId(null);
+        setVerifyPw("");
+      }}
+    >
+      취소
+    </button>
+  </div>
+) : null}
 
                   {isDeleteOpen && !isAdmin ? (
-                    <div className="replyVerify">
+                    <div className="replyVerify verifyBox">
                       <input
                         className="replyPwIn"
                         type="password"
@@ -651,7 +982,7 @@ function renderComment(c: Comment, keyPrefix = "") {
                         placeholder="비밀번호(4자+)"
                       />
                       <button
-                        className="btn primary"
+                        className="gbSubmit"
                         type="button"
                         onClick={() => deleteReply(c.id, r.id, deleteReplyUi?.pw ?? "")}
                       >
@@ -669,50 +1000,131 @@ function renderComment(c: Comment, keyPrefix = "") {
         ) : null}
 
         {openReplyFor === c.id ? (
-          <div className="replyForm">
-            <div className="rTop">
-              <div className="fField">
-                <label>답글 닉네임</label>
-                <input className="in" value={rName} onChange={(e) => setRName(e.target.value)} placeholder="예) 약속" />
-              </div>
+  <div
+    style={{
+      marginTop: 12,
+      marginLeft: 0, // ✅ 왼쪽 여백 제거(요청)
+      border: "1px solid rgba(245,158,11,.22)",
+      background: "rgba(245,158,11,.10)",
+      borderRadius: 14,
+      padding: 14,
+    }}
+  >
+    {/* ✅ 1줄: 닉 / 프로필 / 비번 / 사진첨부 / 등록 */}
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+      <Field label="닉네임" isMobile={isMobile}>
+        <input
+          value={rName}
+          onChange={(e) => setRName(e.target.value)}
+          placeholder="예) 아작님은아기자기해서아작인가요?"
+          style={inputStyle}
+          disabled={submitting || uploading}
+        />
+      </Field>
 
-              <div className="fField">
-                <label>프로필</label>
-                <select className="in" value={rAvatar} onChange={(e) => setRAvatar(e.target.value)}>
-                  {["🙂", "😎", "🐰", "🐻", "🦊", "🐱", "✨"].map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-              </div>
+      {/* ✅ 프로필 폭 조금 줄임 */}
+      <Field label="프로필" narrow isMobile={isMobile}>
+        <select
+          value={rAvatar}
+          onChange={(e) => setRAvatar(e.target.value)}
+          style={selectStyle}
+          disabled={submitting || uploading}
+        >
+          {["🙂", "😎", "🐰", "🐻", "🦊", "🐱", "✨"].map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+      </Field>
 
-              <div className="fField">
-                <label>비밀번호 (수정/삭제)</label>
-                <input
-                  className="in"
-                  value={rPw}
-                  onChange={(e) => setRPw(e.target.value)}
-                  placeholder="4자 이상"
-                  type="password"
-                  disabled={isAdmin}
-                />
-              </div>
+      {/* ✅ 비번 폭 조금 줄임 (narrow + minWidth 조정은 Field가 해줌) */}
+      <Field label="비밀번호 (수정/삭제)" narrow isMobile={isMobile}>
+        <input
+          type="password"
+          value={rPw}
+          onChange={(e) => setRPw(e.target.value)}
+          placeholder="4자 이상"
+          style={inputStyle}
+          disabled={submitting || uploading || isAdmin}
+        />
+      </Field>
 
-              <div className="fField">
-                <label>등록</label>
-                <button className="btn primary" type="button" onClick={() => submitReply(c.id)}>
-                  답글 등록
-                </button>
-              </div>
-            </div>
+      {/* ✅ 사진첨부 추가 */}
+      <Field label="사진 첨부" narrow isMobile={isMobile}>
+        <MultiFilePicker
+          files={rFiles}
+          onChange={(next) => setRFiles(next)}
+          isMobile={isMobile}
+          label="파일선택"
+        />
+      </Field>
 
-            <div className="fField full">
-              <label>내용</label>
-              <textarea className="ta" value={rContent} onChange={(e) => setRContent(e.target.value)} placeholder="답글을 남겨주세요" />
-            </div>
-          </div>
-        ) : null}
+      {/* ✅ 등록 버튼을 같은 줄에 */}
+      <div style={{ flex: isMobile ? "1 1 100%" : "0 0 auto" }}>
+        <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>등록</div>
+        <div style={{ display: "flex", gap: 8 }}>
+
+          <button
+  type="button"
+  onClick={() => submitReply(c.id)}
+  disabled={submitting || uploading}
+  style={{
+    ...NO_TAP,
+    height: isMobile ? CONTROL_H_M : CONTROL_H,
+    padding: isMobile ? "0 12px" : "0 14px",   /* ✅ 모바일만 살짝 */
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: ACCENT_LINE,
+    background: ACCENT_SOFT,
+    color: ACCENT_TEXT,
+    cursor: "pointer",
+    fontSize: isMobile ? 12.5 : 13,            /* ✅ 모바일만 살짝 */
+    fontWeight: isMobile ? 600 : 700,          /* ✅ 모바일만 살짝 */
+    whiteSpace: "nowrap",
+  }}
+>
+  답글 등록
+</button>
+
+<button
+  type="button"
+  onClick={() => setOpenReplyFor(null)}
+  style={{
+    ...NO_TAP,
+    height: isMobile ? CONTROL_H_M : CONTROL_H,
+    padding: isMobile ? "0 12px" : "0 14px",   /* ✅ 모바일만 살짝 */
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+    color: "#111827",
+    cursor: "pointer",
+    fontSize: isMobile ? 12.5 : 13,            /* ✅ 모바일만 살짝 */
+    fontWeight: isMobile ? 600 : 700,          /* ✅ 모바일만 살짝 */
+    whiteSpace: "nowrap",
+  }}
+>
+  취소
+</button>
+        </div>
+      </div>
+    </div>
+
+    {/* 내용 */}
+    <div style={{ marginTop: 10 }}>
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>내용</div>
+      <textarea
+        value={rContent}
+        onChange={(e) => setRContent(e.target.value)}
+        placeholder="응원 한마디 남겨주세요 !"
+        style={{ ...inputStyle, minHeight: 90, resize: "vertical" as any, height: "auto" as any }}
+        disabled={submitting || uploading}
+      />
+    </div>
+  </div>
+) : null}
+
       </div>
     </div>
   );
@@ -892,47 +1304,62 @@ async function likeComment(commentId: string) {
   }
 
   async function submitReply(commentId: string) {
-    if (!id) return;
+  if (!id) return;
 
-    const n = rName.trim();
-    const pw = rPw.trim();
-    const c = rContent.trim();
+  const n = rName.trim();
+  const pw = rPw.trim();
+  const c = rContent.trim();
 
-    if (!n) return alert("답글 닉네임을 입력해줘!");
-    if (!isAdmin && pw.length < 4) return alert("답글 비밀번호는 4자 이상 입력해줘!");
-    if (!c) return alert("답글 내용을 입력해줘!");
+  if (!n) return alert("답글 닉네임을 입력해줘!");
+  if (!isAdmin && pw.length < 4) return alert("답글 비밀번호는 4자 이상 입력해줘!");
+  if (!c) return alert("답글 내용을 입력해줘!");
 
-    const res = await fetch(`/api/profiles/${id}/comments/${commentId}/replies`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: n,
-        avatar: rAvatar,
-        password: pw,
-        content: c,
-        adminKey: isAdmin ? adminKey.trim() : "",
-      }),
-    });
-
-    const t = await res.text();
-    let j: any = {};
-    try {
-      j = t ? JSON.parse(t) : {};
-    } catch {
-      j = { error: t };
+  // ✅ 답글 이미지 업로드
+  let image_urls: string[] = [];
+  if (rFiles.length) {
+    setUploading(true);
+    setProgressTotal(rFiles.length);
+    setProgressNow(0);
+    for (let i = 0; i < rFiles.length; i++) {
+      setStep(`(답글) 사진 업로드… (${i + 1}/${rFiles.length})`);
+      const url = await uploadOne(rFiles[i], "profile-comments");
+      image_urls.push(url);
+      setProgressNow(i + 1);
     }
-
-    if (!res.ok) return alert(j?.error ?? "답글 등록 실패");
-
-    // 폼 초기화
-    setRName("");
-    setRAvatar("🙂");
-    setRPw("");
-    setRContent("");
-
-    // 목록 갱신
-    await loadReplies(commentId);
+    setUploading(false);
   }
+
+  const res = await fetch(`/api/profiles/${id}/comments/${commentId}/replies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: n,
+      avatar: rAvatar,
+      password: pw,
+      content: c,
+      image_urls, // ✅ 추가
+      adminKey: isAdmin ? adminKey.trim() : "",
+    }),
+  });
+
+  const t = await res.text();
+  let j: any = {};
+  try {
+    j = t ? JSON.parse(t) : {};
+  } catch {
+    j = { error: t };
+  }
+
+  if (!res.ok) return alert(j?.error ?? "답글 등록 실패");
+
+  setRName("");
+  setRAvatar("🙂");
+  setRPw("");
+  setRContent("");
+  setRFiles([]); // ✅ 추가
+
+  await loadReplies(commentId);
+}
 
   function startEditReply(r: Reply) {
     setEditingReplyId(r.id);
@@ -1066,6 +1493,29 @@ async function likeComment(commentId: string) {
     setVerifyPw("");
   }
 
+  async function verifyComment(commentId: string) {
+  if (!id) return;
+
+  const pw = verifyCommentPw.trim();
+  if (pw.length < 4) return alert("비밀번호(4자+)를 입력해줘!");
+
+  const res = await fetch(`/api/profiles/${id}/comments/${commentId}/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password: pw }),
+  });
+
+  const t = await res.text();
+  let j: any = {};
+  try { j = t ? JSON.parse(t) : {}; } catch { j = { error: t }; }
+
+  if (!res.ok) return alert(j?.error ?? "본인확인 실패");
+
+  setVerifiedCommentIds((prev) => ({ ...prev, [commentId]: true }));
+  setVerifyCommentId(null);
+  setVerifyCommentPw("");
+}
+
   function startEdit(c: Comment) {
     setEditingId(c.id);
     setEditText(c.content ?? "");
@@ -1178,8 +1628,10 @@ async function likeComment(commentId: string) {
   const progressRatio =
     progressTotal > 0 ? Math.min(1, Math.max(0, progressNow / progressTotal)) : 0;
 
-  return (
-    <main className="bd">
+  const STYLE_TEXT = css;
+
+return (
+  <main className="bd" style={{ background: PAGE_BG, fontFamily: FONT_STACK }}>
       <div className="wrap">
         <div className="top">
 
@@ -1222,12 +1674,14 @@ async function likeComment(commentId: string) {
             <article className="box post">
               <header className="postHead">
                 <div className="kicker">PROFILE</div>
-                <h1 className="title">{post.title}</h1>
-                <div className="info">
-                  {post.role ? <span className="tag">{post.role}</span> : null}
-                  <span className="sep">·</span>
-                  <span className="date">{new Date(post.created_at).toLocaleDateString()}</span>
-                </div>
+<h1 className="title">
+  {post.title}
+  {post.role ? <span className="tag" style={{ marginLeft: 8 }}>{post.role}</span> : null}
+</h1>
+
+<div className="info">
+  <span className="date">{new Date(post.created_at).toLocaleDateString()}</span>
+</div>
               </header>
 
               <section className="postBody">
@@ -1265,121 +1719,98 @@ async function likeComment(commentId: string) {
                   </div>
                 )}
 
-                {/* 작성폼 */}
-                <div className="form">
-                  <div className="fTop">
-                    <div className="fField">
-                      <label>닉네임</label>
-                      <input
-                        className="in"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="예) 약속"
-                        disabled={submitting || uploading}
-                      />
-                    </div>
+                <div style={{ margin: "60px 0", borderTop: "1px dashed #e5e7eb" }} />
 
-                    <div className="fField">
-                      <label>프로필</label>
-                      <select
-                        className="in"
-                        value={avatar}
-                        onChange={(e) => setAvatar(e.target.value)}
-                        disabled={submitting || uploading}
-                      >
-                        {["🙂", "😎", "🐰", "🐻", "🦊", "🐱", "✨"].map((a) => (
-                          <option key={a} value={a}>
-                            {a}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                {/* ✅ 작성폼: 방명록과 1:1 동일(인라인 스타일 방식) */}
+<div
+  style={{
+    border: "1px solid #e5e7eb",
+    borderRadius: 18,
+    padding: 16,
+    background: "#fff",
+  }}
+>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <Field label="닉네임" isMobile={isMobile}>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="예) 약속"
+            style={inputStyle}
+            disabled={submitting || uploading}
+          />
+        </Field>
 
-                    <div className="fField">
-                      <label>비밀번호 (수정/삭제)</label>
-                      <input
-                        className="in"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="4자 이상"
-                        type="password"
-                        disabled={submitting || uploading || (adminOn && adminKey.trim().length > 0)}
-                      />
-                    </div>
+        <Field label="프로필" narrow isMobile={isMobile}>
+          <select
+            value={avatar}
+            onChange={(e) => setAvatar(e.target.value)}
+            style={selectStyle}
+            disabled={submitting || uploading}
+          >
+            {["🙂", "😎", "🐰", "🐻", "🦊", "🐱", "✨"].map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        </Field>
 
-                    <div className="fField">
-                      <label>사진 첨부</label>
-                      <input
-                        ref={fileRef}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        style={{ display: "none" }}
-                        onChange={(e) => onPickFiles(e.target.files)}
-                        disabled={submitting || uploading}
-                      />
-                      <button
-                        className="btn ghost"
-                        type="button"
-                        onClick={() => fileRef.current?.click()}
-                        disabled={submitting || uploading}
-                      >
-                        사진첨부
-                      </button>
-                    </div>
-                  </div>
+        <Field label="비밀번호 (수정/삭제)" narrow isMobile={isMobile}>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="4자 이상"
+            style={inputStyle}
+            disabled={submitting || uploading || (adminOn && adminKey.trim().length > 0)}
+          />
+        </Field>
 
-                  {previews.length ? (
-                    <div className="pickWrap">
-                      {previews.map((src, idx) => (
-                        <div className="pick" key={`${src}-${idx}`}>
-                          <img src={src} alt="" />
-                          <button
-                            type="button"
-                            className="x"
-                            onClick={() => removeFile(idx)}
-                            aria-label="삭제"
-                            disabled={submitting || uploading}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                      <div className="pickHint">최대 6장</div>
-                    </div>
-                  ) : null}
+        <Field label="사진 첨부" narrow isMobile={isMobile}>
+          <MultiFilePicker
+            files={files}
+            onChange={(next) => setFiles(next)}
+            isMobile={isMobile}
+            label="파일선택"
+          />
+        </Field>
+      </div>
 
-                  <div className="fField full">
-                    <label>내용</label>
-                    <textarea
-                      className="ta"
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      placeholder="테스트"
-                      disabled={submitting || uploading}
-                    />
-                  </div>
+      <div style={{ marginTop: 10 }}>
+        <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>내용</div>
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="프로필을 작성해 주세요 !"
+          style={{ ...inputStyle, minHeight: 100, resize: "vertical" as any, height: "auto" as any }}
+          disabled={submitting || uploading}
+        />
+      </div>
 
-                  {uploading || (progressTotal > 0 && progressNow > 0) ? (
-                    <div className="prog">
-                      <div className="progTop">
-                        <div className="progTxt">
-                          업로드 {progressNow}/{progressTotal}
-                        </div>
-                        <div className="progTxt2">{step || "처리 중…"}</div>
-                      </div>
-                      <div className="bar">
-                        <div className="barIn" style={{ width: `${progressRatio * 100}%` }} />
-                      </div>
-                    </div>
-                  ) : null}
+      {/* ✅ 등록 버튼도 방명록과 동일 톤 */}
+<div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
+  <button
+    type="button"
+    onClick={submitComment}
+    disabled={submitting || uploading}
+    style={{
+      ...NO_TAP,
+      padding: "8px 14px",
+      borderRadius: 12,
+      borderWidth: 1,
+      borderStyle: "solid",
+      borderColor: ACCENT_LINE,
+      background: ACCENT_SOFT,
+      color: ACCENT_TEXT,
+      cursor: "pointer",
+      fontSize: isMobile ? 12.5 : 13,     /* ✅ 모바일 살짝 축소 */
+      fontWeight: isMobile ? 550 : 600,   /* ✅ 모바일 살짝 얇게 */
+    }}
+  >
+    {uploading ? "업로드 중…" : submitting ? "등록 중…" : "등록"}
+  </button>
+</div>
+    </div>
 
-                  <div className="fBottom">
-                    <button className="btn primary" onClick={submitComment} disabled={submitting || uploading}>
-                      {uploading ? "업로드 중…" : submitting ? "등록 중…" : "등록"}
-                    </button>
-                  </div>
-                </div>
               </section>
             </article>
 
@@ -1448,209 +1879,301 @@ async function likeComment(commentId: string) {
           </div>
         </div>
       ) : null}
-
-      <style jsx>{css}</style>
+      <style jsx global>{STYLE_TEXT}</style>
     </main>
   );
 }
 
 const css = `
-
-.featuredBox{ border:0; padding:0; margin:0; }
-.item.featured{ margin-top:0; }
-
+/* =========================
+   THEME
+========================= */
 :root{
-  --pt:#f59e0b;          /* 포인트 골드 */
-  --pt2:#fff7ed;         /* 연한 포인트 배경 */
-  --ptLine: rgba(245,158,11,.35);
-}
+  --pt:#f59e0b;                 /* 포인트 골드 */
+  --ptSoft: rgba(245,158,11,.10);
+  --ptSoft2: rgba(245,158,11,.06);  /* ✅ 베댓 배경(공지톤보다 더 연하게) */
+  --ptLine: rgba(245,158,11,.22);
 
-/* ✅ 추천 버튼 */
-.aBtn.like{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:0;
-  color:#111827;
-  font-weight:800;
-}
-.likeNum{
-  font-weight:900;
-  color: #6b7280;
-}
+  --line: rgba(15,23,42,.08);
+  --line2:#eef2f7;
 
-/* ✅ 베스트 강조 */
-.item.best{
-  position:relative;
-  padding-top:22px; /* 배지 공간 */
-}
-
-.item.best::before{
-  content:"";
-  position:absolute;
-  left:0;
-  right:0;
-  top:10px;
-  bottom:10px;
-  border-radius:14px;
-  background: linear-gradient(180deg, var(--pt2), #fff);
-  border:1px solid var(--ptLine);
-  pointer-events:none;
-}
-
-/* item 내부 내용이 ::before 위로 오도록 */
-.item.best > *{
-  position:relative;
-  z-index:1;
-}
-
-/* BEST 배지 */
-.bestBadge{
-  margin-left:8px;
-  font-size:11px;
-  font-weight:900;
-  padding:4px 8px;
-  border-radius:999px;
-  background: rgba(245,158,11,.16);
-  border:1px solid rgba(245,158,11,.35);
-  color:#92400e;
-  letter-spacing:.02em;
+  --text: rgba(17,24,39,.92);
+  --muted: rgba(17,24,39,.55);
 }
 
 *, *:before, *:after { box-sizing: border-box; }
-.bd{ min-height:100vh; background:#fff; color:#111827; scrollbar-width: none; }
-.bd::-webkit-scrollbar{
-  width: 0;                    /* Chrome/Safari */
-  height: 0;
-}
-.wrap{ max-width:980px; margin:0 auto; padding:16px 16px 60px; }
-@media (max-width:560px){ .wrap{ padding:12px 12px 54px; } }
 
-.top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
-.topRight{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
-.link{ color:#111827; text-decoration:none; font-weight:500; font-size:13px; }
+:global(html),
+:global(body){
+  background:#ffffff !important;
+}
+
+.bd{
+  min-height:100vh;
+  background:transparent;
+  color:#111827;
+  scrollbar-width:none;
+}
+.bd::-webkit-scrollbar{ width:0; height:0; }
+
+.wrap{
+  max-width:980px;
+  margin:0 auto;
+  padding:16px 16px 60px;
+}
+@media (max-width:560px){
+  .wrap{ padding:0 12px 54px; }
+}
+
+/* =========================
+   TOP BAR
+========================= */
+.top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.topRight{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.link{
+  color:#111827;
+  text-decoration:none;
+  font-weight:500;
+  font-size:13px;
+}
 .link:hover{ text-decoration:underline; }
 
-.btn{
-  height:34px; padding:0 12px; border-radius:12px; border:1px solid #e5e7eb;
-  background:#fff; color:#111827; font-weight:700; font-size:13px; cursor:pointer; white-space:nowrap;
-}
 .btn:hover{ background:#f9fafb; }
 .btn:disabled{ opacity:.6; cursor:default; }
 .btn.ghost{ background:#fff; }
 .btn.primary{ background:#111827; border-color:#111827; color:#fff; }
 
+.aBtn{
+  border:0;
+  background:transparent;
+  padding:0;
+  font-size:13px;
+  font-weight:400;              /* ✅ 500 -> 400 */
+  color:rgba(17,24,39,.55);
+  cursor:pointer;
+  line-height:1.2;
+  text-decoration:none;
+}
+.aBtn:hover{
+  text-decoration:none;         /* ✅ 밑줄 제거 */
+  opacity:.86;
+}
+.aBtn.danger{ color:rgba(239,68,68,.88); }
+
+.swTxt{ font-size:12px; font-weight:600; color:#6b7280; } /* ✅ 700 -> 600 */
+
+.btn{
+  height:34px;
+  padding:0 12px;
+  border-radius:12px;
+  border:1px solid #e5e7eb;
+  background:#fff;
+  color:#111827;
+  font-weight:700;
+  font-size:13px;
+  cursor:pointer;
+  white-space:nowrap;
+}
+
+/* ✅ 모바일에서 버튼/입력 살짝만 컴팩트 */
+@media (max-width:560px){
+  .btn{
+    height:32px;               /* ✅ 34 -> 32 */
+    padding:0 10px;            /* ✅ 12 -> 10 */
+    font-size:12.5px;          /* ✅ 13 -> 12.5 */
+    font-weight:650;           /* ✅ 700 -> 650 */
+  }
+  .adminIn{
+    height:32px;               /* ✅ 34 -> 32 */
+    font-size:12.5px;
+  }
+  .aBtn{ font-size:12.5px; }   /* ✅ 13 -> 12.5 */
+}
+
 .switch{ display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
 .switch input{ display:none; }
 .slider{
-  width:42px; height:24px; border-radius:999px; background:#e5e7eb; position:relative; flex:0 0 auto;
+  width:42px; height:24px; border-radius:999px;
+  background:#e5e7eb; position:relative; flex:0 0 auto;
 }
 .slider:after{
-  content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:999px; background:#fff;
-  box-shadow:0 1px 4px rgba(0,0,0,.12); transition: all .18s ease;
+  content:""; position:absolute; top:3px; left:3px;
+  width:18px; height:18px; border-radius:999px; background:#fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.12);
+  transition:all .18s ease;
 }
 .switch input:checked + .slider{ background:#111827; }
 .switch input:checked + .slider:after{ left:21px; }
-.swTxt{ font-size:12px; font-weight:700; color:#6b7280; }
 
 .adminIn{
-  height:34px; width:170px; border-radius:12px; border:1px solid #e5e7eb; padding:0 10px; outline:none;
-  font-size:13px; background:#fff;
+  height:34px; width:170px;
+  border-radius:12px;
+  border:1px solid #e5e7eb;
+  padding:0 10px;
+  outline:none;
+  font-size:13px;
+  background:#fff;
 }
 
-.box{ background:#fff; border:1px solid #e5e7eb; border-radius:14px; }
-.state{ padding:16px; text-align:center; color:#6b7280; font-size:13px; }
+/* =========================
+   ✅ 전체 큰 박스(테두리/그림자 제거)
+   - 구분선만 남기기
+========================= */
+.box{
+  background:#fff;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+}
 
-.post{ overflow:hidden; }
-.postHead{ padding:18px 18px 12px; border-bottom:1px solid #eef2f7; }
+.state{
+  padding:16px;
+  text-align:center;
+  color:#6b7280;
+  font-size:13px;
+}
+
+/* =========================
+   POST
+========================= */
+.post{ overflow:visible; }
+.postHead{
+  padding:18px 18px 12px;
+  border-bottom:1px solid var(--line);
+}
 .kicker{ font-size:11px; letter-spacing:.22em; color:#9ca3af; }
 .title{ margin:6px 0 0; font-size:18px; font-weight:700; letter-spacing:-.02em; }
-.info{ margin-top:10px; display:flex; align-items:center; gap:8px; font-size:12px; color:#6b7280; }
-.tag{ display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:999px; border:1px solid #e5e7eb; background:#f9fafb; font-weight:900; font-size:12px; }
+.info{
+  margin-top:10px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  color:#6b7280;
+}
+.tag{
+  display:inline-flex;
+  align-items:center;
+  height:22px;
+  padding:0 8px;
+  border-radius:999px;
+  border:1px solid #e5e7eb;
+  background:#f9fafb;
+  font-weight:900;
+  font-size:12px;
+}
 .sep{ color:#cbd5e1; }
 
-.postBody{ padding:14px 18px 100px; }
+.postBody{ padding:14px 18px 22px; }
 
-.p{ margin:0; font-size:14px; line-height:1.75; white-space:pre-wrap; word-break:break-word; }
+.p{
+  margin:0;
+  font-size:14px;
+  line-height:1.75;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
 .muted{ color:#6b7280; }
-.attach{ margin-top:12px; display:grid; grid-template-columns:1fr; gap:10px; }
-.imgBtn{ border:0; background:transparent; padding:0; cursor:zoom-in; }
 
-/* ✅ 원본 크기 유지 + 화면/게시글 폭보다 크면 자동 축소 */
+.attach{
+  margin-top:12px;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+}
 .imgBtn{
   border:0;
   background:transparent;
   padding:0;
   cursor:zoom-in;
   display:flex;
-  justify-content:center; /* ✅ 작은 이미지는 가운데 */
+  justify-content:center;
 }
-
 .imgBtn img{
-  width:auto;            /* ✅ 강제 확대 금지 */
+  width:auto;
   height:auto;
-  max-width:100%;        /* ✅ 게시글 폭 넘으면 자동 축소 */
-  max-height:720px;      /* ✅ 너무 큰 세로도 제한 */
+  max-width:100%;
+  max-height:720px;
   border-radius:12px;
   display:block;
   object-fit:contain;
 }
 
+/* =========================
+   COMMENTS (방명록 톤)
+========================= */
 .cm{
-  border-top:1px solid #eef2f7;
-  padding:24px 18px 18px;   /* ✅ 위쪽만 넉넉하게 */
+  border-top:1px solid var(--line);
+  padding:22px 18px 18px;
 }
-.cmHead{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
-
+.cmHead{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:10px;
+}
 .cmTitle{ margin:0; font-size:14px; font-weight:700; }
 
-.cmHint{ font-size:12px; color:#6b7280; }
-.empty{ border:1px dashed #d1d5db; background:#fafafa; padding:12px; border-radius:12px; color:#6b7280; font-size:13px; }
+.empty{
+  border:1px dashed #d1d5db;
+  background:#fafafa;
+  padding:12px;
+  border-radius:12px;
+  color:#6b7280;
+  font-size:13px;
+  margin-bottom: 16px;
+}
 
 .list{
+  background:transparent;
   border:0;
   border-radius:0;
   overflow:visible;
-  background:transparent;
 }
 
-.item{
-  padding:20px 0;
+.featuredBox{
+  margin-bottom: 10px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb;
 }
+.item.featured{ margin-top:0; }
 
-.item + .item{
-  border-top:1px solid #eef2f7;
-  margin-top:2px;   /* ✅ 댓글 사이 간격 */
-}
+/* ✅ 댓글 간 간격(구분선 위/아래 여백 늘리기) */
+.item{ padding:26px 0; }
+.item + .item{ border-top:1px solid var(--line2); }
 
-
-.name{ font-weight:700; font-size:14px; }
-.time{ font-size:12px; color:#9ca3af; white-space:nowrap; }
-
-.aBtn{ border:0; background:transparent; padding:0; font-size:12px; font-weight:500; color:#6b7280; cursor:pointer; }
-.aBtn:hover{ text-decoration:underline; }
-.aBtn.danger{ color:#ef4444; }
-
-/* ✅ 댓글 헤더(두번째 사진처럼) */
 .headRow{
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
   gap:12px;
 }
-
 .left{
   display:flex;
   align-items:flex-start;
   gap:12px;
   min-width:0;
 }
-
 .avatar{
-  width:42px;
-  height:42px;
+  width:40px;
+  height:40px;
   border-radius:999px;
-  border:1px solid #e5e7eb;
+  border:1px solid rgba(15,23,42,.10);
   background:#fff;
   display:flex;
   align-items:center;
@@ -1658,17 +2181,7 @@ const css = `
   font-size:16px;
   flex:0 0 auto;
 }
-
 .meta{ min-width:0; }
-
-/* ✅ 닉네임 바로 아래 본문 */
-.cBody{
-  margin-top:4px;      /* 여기 숫자로 간격 조절 (2~6 추천) */
-  font-size:13.5px;
-  line-height:1.6;
-  white-space:pre-wrap;
-  word-break:break-word;
-}
 
 .nameLine{
   display:flex;
@@ -1676,79 +2189,125 @@ const css = `
   gap:10px;
   min-width:0;
 }
-
 .name{
-  font-weight:700;
-  font-size:13px;
+  font-size:13.5px;
+  font-weight:800;
+  color:var(--text);
   white-space:nowrap;
 }
-
 .time{
   font-size:12px;
-  color:#9ca3af;
+  color:rgba(17,24,39,.45);
   white-space:nowrap;
 }
 
-.actions{
-  display:flex;
-  gap:10px;
-  align-items:center;
-  flex:0 0 auto;
+.timeLine{
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(17,24,39,.45);
+  line-height: 1.25;
 }
 
-.text{
-  margin:0;            /* ✅ 혹시 p/기본 margin 있으면 제거 */
-  padding:0;
-  font-size:14px;
-  line-height:1.6;
+/* ✅ 닉 아래 본문 */
+.cBody{
+  margin-top:6px;
+  font-size:13.5px;
+  line-height:1.65;
+  color:var(--text);
   white-space:pre-wrap;
   word-break:break-word;
 }
 
-.text p{ margin:0; }
-
-.editTa{
-  width:100%; min-height:90px; border-radius:12px; border:1px solid #e5e7eb; padding:12px; outline:none;
-  font-size:13px; line-height:1.6; resize:vertical;
+/* ✅ 액션 영역 기준선 고정(정렬 더 안정적) */
+.actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:12px;
+  flex:0 0 auto;
+  white-space:nowrap;
 }
-.editBar{ margin-top:10px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-.pwIn{ height:34px; width:220px; border-radius:12px; border:1px solid #e5e7eb; padding:0 10px; outline:none; }
-.adminChip{ height:34px; display:inline-flex; align-items:center; padding:0 10px; border-radius:999px; border:1px solid #e5e7eb; background:#f9fafb; font-size:12px; font-weight:900; }
-.editBtns{ display:flex; gap:8px; }
 
-.editImgs{ margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; }
-.keep{
-  position:relative; width:74px; height:74px; border-radius:12px; overflow:hidden; border:0; padding:0; cursor:pointer;
-  background:#eef2f7;
+@media (max-width:560px){
+  .actions{ flex-wrap:wrap; justify-content:flex-end; }
 }
-.keep img{ width:100%; height:100%; object-fit:cover; display:block; }
-.keepX{
-  position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:999px;
-  background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700;
+
+/* ✅ 추천 버튼 */
+.aBtn.like{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-weight:500;
+  color:rgba(17,24,39,.55);
 }
-.hint{ font-size:12px; color:#9ca3af; padding-bottom:2px; }
+.likeNum{
+  font-weight:600;
+  color:rgba(17,24,39,.55);
+}
 
-.editAdd{ margin-top:10px; }
+/* ✅ BEST 배지 */
+.bestBadge{
+  margin-left:8px;
+  display:inline-flex;
+  align-items:center;
+  height:20px;
+  padding:0 8px;
+  border-radius:999px;
+  border:1px solid rgba(245,158,11,.25);
+  background:rgba(245,158,11,.10);
+  color:rgba(120,53,15,.92);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.02em;
+}
 
+/* ✅ Featured(상단 고정) 베댓만 하이라이트 유지 */
+.item.bestFeatured{
+  background: #fffcf1;
+  border: 1px solid rgb(255, 236, 174);
+  border-radius: 16px;
+  padding: 14px 14px;
+  margin: 10px 0;
+}
+
+/* ✅ 베댓 원본댓글(리스트)은 일반댓글과 동일하게 → 추가 배경 없음 */
+.bestIcon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 12px;
+  line-height: 1;
+  transform: translateY(-1px);
+  opacity: .9;
+}
+
+/* ✅ 상단 Featured 박스와 일반 댓글 리스트 사이 구분선(있어 보이게) */
+.featuredBox{
+  border: 0;
+  padding: 0;
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line2);
+}
+
+/* =========================
+   COMMENT IMAGES
+========================= */
 .thumbGrid{
   margin-top:10px;
-  padding-left:54px;
-
+  padding-left:52px;
   display:grid;
-  grid-template-columns: repeat(4, minmax(0, 86px)); /* ✅ 작게 */
+  grid-template-columns:repeat(4, minmax(0, 86px));
   gap:8px;
 }
 @media (max-width:720px){
-  .thumbGrid{ grid-template-columns: repeat(3, minmax(0, 86px)); }
+  .thumbGrid{ grid-template-columns:repeat(3, minmax(0, 86px)); }
 }
 @media (max-width:420px){
-  .thumbGrid{ grid-template-columns: repeat(2, minmax(0, 86px)); }
+  .thumbGrid{ grid-template-columns:repeat(2, minmax(0, 86px)); }
 }
-
 .thumb{
-  width:86px;             /* ✅ 작게 고정 */
-  height:86px;
-  aspect-ratio:auto;
+  width:86px; height:86px;
   border:1px solid rgba(15,23,42,.06);
   padding:0;
   border-radius:12px;
@@ -1756,74 +2315,146 @@ const css = `
   background:#f3f4f6;
   cursor:pointer;
 }
-
 .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
 .thumb.more{ position:relative; }
 .moreBadge{
-  position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:14px;
   color:#fff; background:rgba(17,24,39,.55);
 }
 
-.form{ margin-top:14px; border:1px solid #eef2f7; background:#fff; border-radius:14px; padding:14px; }
+/* =========================
+   EDIT UI
+========================= */
+.textWrap{ margin-top:0; }
 
-.fTop{
-  display:grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 180px) minmax(0, 1fr) auto; /* ✅ 4칸 */
-  gap:12px;
-  align-items:end;
-}
-
-/* 화면 좁으면 1열로 */
-@media (max-width:860px){
-  .fTop{ grid-template-columns: 1fr; }
-}
-
-/* ✅ 겹침 방지 핵심: grid item은 min-width:0 이어야 안 튀어나감 */
-.fField{ min-width:0; }
-
-/* 마지막(사진첨부)은 버튼만 있으니 그대로 */
-.fField:last-child{ min-width:auto; }
-
-.in{
+.editTa{
   width:100%;
-  min-width:0;              /* ✅ 겹침 방지 */
-  height:38px;
+  min-height:90px;
   border-radius:12px;
   border:1px solid #e5e7eb;
-  padding:0 12px;
+  padding:12px;
   outline:none;
   font-size:13px;
-  box-sizing:border-box;    /* 안전 */
+  line-height:1.6;
+  resize:vertical;
+  background:#fff;
 }
 
-.fField label{ display:block; font-size:12px; font-weight:700; color:#6b7280; margin-bottom:6px; }
-.fField.full{ margin-top:12px; }
+.editImgs{ margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; }
+.keep{
+  position:relative;
+  width:74px; height:74px;
+  border-radius:12px;
+  overflow:hidden;
+  border:0; padding:0;
+  cursor:pointer;
+  background:#eef2f7;
+}
+.keep img{ width:100%; height:100%; object-fit:cover; display:block; }
+.keepX{
+  position:absolute; top:6px; right:6px;
+  width:22px; height:22px;
+  border-radius:999px;
+  background:rgba(0,0,0,.55);
+  color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700;
+}
+.hint{ font-size:12px; color:#9ca3af; padding-bottom:2px; }
 
-.ta{ width:100%; min-height:120px; border-radius:12px; border:1px solid #e5e7eb; padding:12px; outline:none; font-size:13px; line-height:1.7; resize:vertical; }
-.fBottom{ margin-top:12px; display:flex; justify-content:flex-end; }
+.editAdd{ margin-top:10px; }
+.editBar{
+  margin-top:10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.pwIn{
+  height:34px; width:220px;
+  border-radius:12px;
+  border:1px solid #e5e7eb;
+  padding:0 10px;
+  outline:none;
+  background:#fff;
+}
+.adminChip{
+  height:34px;
+  display:inline-flex;
+  align-items:center;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid #e5e7eb;
+  background:#f9fafb;
+  font-size:12px;
+  font-weight:900;
+}
+.editBtns{ display:flex; gap:8px; }
 
-.pickWrap{ margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
-.pick{ position:relative; width:74px; height:74px; border-radius:12px; overflow:hidden; background:#eef2f7; }
 .pick img{ width:100%; height:100%; object-fit:cover; display:block; }
-.x{ position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:999px; border:1px solid #e5e7eb; background:rgba(255,255,255,.95); cursor:pointer; font-weight:900; line-height:22px; }
-.pickHint{ font-size:12px; color:#9ca3af; padding-bottom:2px; }
 
-.prog{ margin-top:10px; padding:12px; border-radius:12px; background:#fafafa; border:1px solid #eef2f7; }
-.progTop{ display:flex; align-items:flex-end; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+/* =========================
+   UPLOAD PROGRESS
+========================= */
+.prog{
+  margin-top:10px;
+  padding:12px;
+  border-radius:12px;
+  background:#fff;
+  border:1px solid rgba(15,23,42,.08);
+}
+.progTop{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:8px;
+}
 .progTxt{ font-size:12px; font-weight:900; }
 .progTxt2{ font-size:12px; color:#6b7280; }
 .bar{ width:100%; height:8px; border-radius:999px; background:#e5e7eb; overflow:hidden; }
 .barIn{ height:100%; border-radius:999px; background:#111827; }
 
-.viewer{ position:fixed; inset:0; background:rgba(17,24,39,.70); display:flex; align-items:center; justify-content:center; padding:16px; z-index:9999; }
-.viewerInner{ width:min(980px,96vw); max-height:90vh; background:#fff; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
-.viewerClose{ height:46px; padding:0 14px; border:0; border-bottom:1px solid #eef2f7; background:#fff; cursor:pointer; font-weight:700; font-size:13px; text-align:left; }
-.viewerImg{ padding:12px; overflow:auto; }
-
+/* =========================
+   VIEWER
+========================= */
+.viewer{
+  position:fixed;
+  inset:0;
+  background:rgba(17,24,39,.70);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+  z-index:9999;
+}
+.viewerInner{
+  width:min(980px,96vw);
+  max-height:90vh;
+  background:#fff;
+  border-radius:14px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+.viewerClose{
+  height:46px;
+  padding:0 14px;
+  border:0;
+  border-bottom:1px solid var(--line2);
+  background:#fff;
+  cursor:pointer;
+  font-weight:700;
+  font-size:13px;
+  text-align:left;
+}
 .viewerImg{ padding:12px; overflow:auto; text-align:center; }
-
 .viewerImg img{
-  width:auto;           /* ✅ 뷰어에서도 강제 확대 금지 */
+  width:auto;
   height:auto;
   max-width:100%;
   max-height:76vh;
@@ -1832,64 +2463,64 @@ const css = `
 }
 
 /* =========================
-   ✅ 답글 UI
+   REPLIES (답글) - 더 진하게/확실히 구분
 ========================= */
-.replies{ margin-top:12px; padding-left:44px; padding-top:0; border-top:0; }
-
-.replyTop{
-  display:flex;
-  gap:8px;
-  justify-content:flex-end;
-  flex-wrap:wrap;
+.replies{
+  margin-top:12px;
+  padding-left:0;
+  padding-right:0;
 }
 
-.replyBtn{
-  height:30px;
-  padding:0 10px;
-  border-radius:10px;
-  border:1px solid #e5e7eb;
-  background:#fff;
-  font-weight:300;
-  font-size:12px;
-  cursor:pointer;
-}
-.replyBtn.ghost{ background:#fff; color:#6b7280; }
-
-.replyList{
-  margin-top:10px;
-  display:grid;
-  gap:8px;
+@media (max-width:560px){
+  .replies{ padding-left:0; padding-right:0; }
 }
 
 .replyItem{
   border:0;
   background:transparent;
-  border-radius:0;
   padding:0;
 }
 
-.replyItem.editing{
-  background:#fff;
-  box-shadow:0 6px 16px rgba(17,24,39,0.08);
-  border-color:#e5e7eb;
+/* ✅ 답글 영역: 연회색 톤 + 좌우 패딩 동일 + 여백 줄이기 */
+.replyList{
+  margin-top:10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+
+  /* ✅ 공통 배경 제거 */
+  background: transparent;
+
+  display:grid;
+  gap:0;
 }
 
+/* ✅ 답글 줄도 박스 안에서 균등하게 */
 .replyRow{
-  display:flex;          /* ✅ 추가 */
-  align-items:flex-start;
+  display:flex;
   gap:10px;
+  align-items:flex-start;
 
-  padding:10px 12px;
-  border:1px solid rgba(15,23,42,.06);
-  border-radius:14px;
-  background:#f9fafb;
+  padding:10px 0;
+  border-top:1px solid rgba(15,23,42,.08);
+}
+.replyItem:first-child .replyRow{ border-top:0; }
+
+/* 기본 답글 (일반 댓글) */
+.replyList.normalReply{
+  background:#f6f7f9;
+  border:1px solid #f5f5f5;
+}
+
+.replyList.bestReply{
+  background: rgba(255, 243, 214, 0.73);
+  border: 1px solid rgba(255, 245, 219, 0.81);
 }
 
 .replyAvatar{
   width:34px;
   height:34px;
   border-radius:999px;
-  border:1px solid #e5e7eb;
+  border:1px solid rgba(15,23,42,.10);
   background:#fff;
   display:flex;
   align-items:center;
@@ -1898,26 +2529,27 @@ const css = `
   flex:0 0 auto;
 }
 
-.replyMeta{
-  flex:1 1 auto;
-  min-width:0;
-}
-
-
-.replyName{ font-weight:700; font-size:13px; }
+.replyMeta{ flex:1 1 auto; min-width:0; }
 
 .replyNameLine{
   display:flex;
   align-items:baseline;
   gap:10px;
 }
+.replyName{ font-weight:700; font-size:13.5px; color:rgba(17,24,39,.92); }
 
 .replyTime{
-  font-size:12px;      /* ✅ 댓글이랑 동일 */
-  color:#9ca3af;       /* ✅ 댓글이랑 동일 */
-  white-space:nowrap;
-  font-weight:400;     /* ✅ 커 보이는 느낌 방지 */
-  margin-left:auto;
+  font-size:12px;
+  color:rgba(17,24,39,.45);
+  line-height:1.25;
+  font-weight:400;
+}
+
+.replyTimeLine{
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(17,24,39,.45);
+  line-height: 1.25;
 }
 
 .replyText{
@@ -1926,6 +2558,7 @@ const css = `
   line-height:1.65;
   white-space:pre-wrap;
   word-break:break-word;
+  color:rgba(17,24,39,.92);
 }
 
 .replyActions{
@@ -1933,6 +2566,7 @@ const css = `
   gap:8px;
   align-items:center;
   flex:0 0 auto;
+  margin-left:auto;
 }
 
 .replyEditTa{
@@ -1940,7 +2574,7 @@ const css = `
   min-height:70px;
   margin-top:8px;
   border-radius:12px;
-  border:1px solid #e5e7eb;
+  border:1px solid rgba(15,23,42,.10);
   padding:10px 12px;
   outline:none;
   font-size:13px;
@@ -1955,7 +2589,7 @@ const css = `
   max-width:100%;
   margin-top:8px;
   border-radius:12px;
-  border:1px solid #e5e7eb;
+  border:1px solid rgba(15,23,42,.10);
   padding:0 10px;
   outline:none;
   background:#fff;
@@ -1970,170 +2604,142 @@ const css = `
   align-items:center;
 }
 
-.replyEmpty{
+.replyThumbGrid{
   margin-top:10px;
-  font-size:13px;
-  color:#9ca3af;
-  padding:6px 0;
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 86px));
+  gap:8px;
+}
+@media (max-width:720px){
+  .replyThumbGrid{ grid-template-columns:repeat(3, minmax(0, 86px)); }
+}
+@media (max-width:420px){
+  .replyThumbGrid{ grid-template-columns:repeat(2, minmax(0, 86px)); }
 }
 
-/* 답글 작성 폼: 4칸 */
-.replyForm{
-  margin-top:12px;
-  border:1px solid #eef2f7;
-  background:#fff;
-  border-radius:14px;
-  padding:12px;
-}
-.rTop{
-  display:grid;
-  grid-template-columns: 1.2fr 180px 1fr 140px;
-  gap:12px;
-  align-items:end;
-}
-@media (max-width:860px){
-  .rTop{ grid-template-columns: 1fr; }
+/* 댓글 thumb 스타일 재사용 + 답글은 살짝 더 작게 */
+.replyThumbGrid .thumb{
+  width:76px;
+  height:76px;
 }
 
 /* =========================
-   ✅ 멤버 미리보기 섹션 (리디자인)
+   MEMBER PREVIEW (mp) - 그림자 제거/깔끔
 ========================= */
 .mp{
-  margin-top: 30px;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  margin-top:34px;
+  padding:28px 18px;
+  border-top:1px solid var(--line);
+  background:#fff;
+  border-radius:0;
+  box-shadow:none;
 }
 
 .mpHead{
   display:flex;
-  align-items:center;
+  align-items:flex-end;
   justify-content:space-between;
-  gap: 12px;
-  margin-bottom: 18px;  /* ← 14px → 18px */
-  flex-wrap: wrap;
+  gap:12px;
+  margin-bottom:16px;
+  flex-wrap:wrap;
 }
 
 .mpKicker{
-  font-size: 11px;
+  font-size:11px;
   letter-spacing:.26em;
-  font-weight: 700;
-  color: rgba(15,23,42,.45);
+  font-weight:700;
+  color:rgba(15,23,42,.45);
 }
-
 .mpTitle{
-  margin: 6px 0 0;
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  margin:6px 0 0;
+  font-size:17px;
+  font-weight:850;
+  letter-spacing:-0.03em;
   color:#0f172a;
 }
-
 .mpSub{
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: rgba(15,23,42,.60);
+  margin:6px 0 0;
+  font-size:13px;
+  color:rgba(15,23,42,.60);
 }
 
 .mpAll{
   text-decoration:none;
-  font-weight: 700;
-  font-size: 12px;
-  color: rgba(120,53,15,.95);
-  padding: 9px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(245,158,11,.28);
-  background: rgba(245,158,11,.12);
-  box-shadow: 0 10px 22px rgba(245,158,11,.10);
-  transition: transform .15s ease, background .15s ease;
+  font-weight:700;
+  font-size:12px;
+  color:rgba(120,53,15,.95);
+  padding:9px 14px;
+  border-radius:999px;
+  border:1px solid rgba(245,158,11,.22);
+  background:rgba(245,158,11,.10);
+  transition:transform .15s ease, background .15s ease;
 }
 .mpAll:hover{
-  background: rgba(245,158,11,.16);
-  transform: translateY(-1px);
+  background:rgba(245,158,11,.14);
+  transform:translateY(-1px);
 }
 
 .mpState{
-  border: 1px solid rgba(15,23,42,.08);
-  border-radius: 16px;
-  padding: 14px;
-  background: rgba(255,255,255,.98);
-  color: rgba(15,23,42,.62);
-  font-size: 13px;
+  border:1px solid rgba(15,23,42,.10);
+  border-radius:16px;
+  padding:14px;
+  background:#fff;
+  color:rgba(15,23,42,.62);
+  font-size:13px;
 }
 
 .mpGrid{
   display:grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-    border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:12px;
 }
-@media (max-width: 860px){
-  .mpGrid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width:860px){
+  .mpGrid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 520px){
-  .mpGrid{ grid-template-columns: 1fr; }
+@media (max-width:520px){
+  .mpGrid{ grid-template-columns:1fr; }
 }
 
-/* 카드 자체: 더 “프로필” 느낌 + 깔끔한 깊이감 */
 .mpCard{
-  position: relative;
+  position:relative;
   display:flex;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 18px;
-  border: 1px solid rgba(15,23,42,.08);
-  background:
-    radial-gradient(700px 160px at 10% 0%, rgba(245,158,11,.12), transparent 55%),
-    linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.96));
-  box-shadow: 0 14px 30px rgba(15,23,42,.06);
+  gap:12px;
+  padding:12px;
+  border-radius:16px;
+  border:1px solid rgba(15,23,42,.10);
+  background:#fff;
+  box-shadow:none;                /* ✅ 그림자 제거 */
   text-decoration:none;
-  color: inherit;
+  color:inherit;
   overflow:hidden;
-  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  transition:transform .16s ease, border-color .16s ease;
 }
 .mpCard:hover{
-  transform: translateY(-2px);
-  border-color: rgba(245,158,11,.24);
-  box-shadow: 0 18px 42px rgba(15,23,42,.10);
+  transform:translateY(-1px);
+  border-color:rgba(245,158,11,.22);
 }
 
-/* 썸네일: 고정 비율 + 라운드 + 테두리 */
 .mpThumb{
-  flex: 0 0 90px;
-  height: 74px;
-  border-radius: 16px;
+  flex:0 0 90px;
+  height:74px;
+  border-radius:14px;
   overflow:hidden;
-  border: 1px solid rgba(15,23,42,.10);
-  background: rgba(15,23,42,.04);
+  border:1px solid rgba(15,23,42,.10);
+  background:rgba(15,23,42,.04);
   display:flex;
   align-items:center;
   justify-content:center;
 }
-.mpThumb img{
-  width:100%;
-  height:100%;
-  object-fit: cover;
-  display:block;
-}
+.mpThumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.mpPh{ font-size:22px; color:rgba(15,23,42,.55); }
 
-/* 썸네일 없을 때도 “허전”하지 않게 */
-.mpPh{
-  font-size: 22px;
-  color: rgba(15,23,42,.55);
-}
-
-/* 오른쪽 텍스트 영역 */
 .mpBody{
   min-width:0;
   flex:1;
   display:flex;
   flex-direction:column;
-  gap: 7px;
+  gap:7px;
 }
-
 .mpTop{
   display:flex;
   align-items:center;
@@ -2141,59 +2747,199 @@ const css = `
   gap:10px;
   min-width:0;
 }
-
 .mpName{
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: -0.02em;
+  font-size:14px;
+  font-weight:850;
+  letter-spacing:-0.02em;
   overflow:hidden;
   white-space:nowrap;
   text-overflow:ellipsis;
   color:#0f172a;
 }
-
-/* role 뱃지: 더 이쁘고 작게 */
 .mpBadge{
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(245,158,11,.26);
-  background: rgba(245,158,11,.12);
-  color: rgba(120,53,15,.95);
-  font-weight: 900;
+  font-size:11px;
+  padding:4px 10px;
+  border-radius:999px;
+  border:1px solid rgba(245,158,11,.22);
+  background:rgba(245,158,11,.10);
+  color:rgba(120,53,15,.95);
+  font-weight:800;
   white-space:nowrap;
 }
-
-/* 소개: 줄 간격 + 두 줄 제한 */
 .mpBio{
-  font-size: 12.8px;
-  color: rgba(15,23,42,.72);
-  line-height: 1.55;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  font-size:12.8px;
+  color:rgba(15,23,42,.72);
+  line-height:1.55;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
   overflow:hidden;
 }
-
-/* 하단 메타: “칩” 느낌으로 */
 .mpMeta{
-  margin-top: 2px;
-  font-size: 11.5px;
-  color: rgba(15,23,42,.55);
+  margin-top:2px;
+  font-size:11.5px;
+  color:rgba(15,23,42,.55);
   display:flex;
   align-items:center;
-  gap: 8px;
+  gap:8px;
 }
-.mpMeta .dot{
-  color: rgba(15,23,42,.22);
+.mpMeta .dot{ color:rgba(15,23,42,.22); }
+
+/* =========================
+   MOBILE: 좌우 여백 정리
+========================= */
+@media (max-width:560px){
+  .postHead,
+  .postBody,
+  .cm,
+  .mp{
+    padding-left:0;
+    padding-right:0;
+  }
+
+  .thumbGrid,
+  .replies{
+    padding-left:0;
+  }
 }
 
-.mpOut{
-  margin-top: 16px;
-  padding: 18px;
-  border: 1px solid rgba(15,23,42,.08);
-  border-radius: 16px;
+/* ✅ 답글 폼은 방명록 폼 그대로 + 살짝만 컴팩트 */
+.gbFormReply{
+  margin-top:12px;
+  padding-left:52px;  /* 답글 리스트랑 시작선 맞추기 */
+}
+
+.gbFormReply .gbForm{
+  /* (혹시 gbFormReply를 div.gbForm로 쓰는 구조면 이 줄은 필요 없음) */
+}
+
+@media (max-width:560px){
+  .gbFormReply{ padding-left:0, marginLeft: isMobile ? 0 : 52; }
+}
+
+/* =========================
+   ✅ VERIFY UI - 투명 / 미니멀
+========================= */
+
+/* 전체 래퍼: 완전 투명 */
+.verifyBox{
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* 가로 정렬만 담당 */
+.replyVerify{
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* 🔐 비밀번호 입력창만 살짝 강조 */
+.replyVerify .replyPwIn{
+  height: 34px;
+  min-width: 200px;
+  border-radius: 10px;
+  border: 1px solid rgba(15,23,42,.12);
   background: #fff;
+  padding: 0 12px;
+  font-size: 13px;
+  outline: none;
+}
+
+.replyVerify .replyPwIn::placeholder{
+  color: rgba(15,23,42,.45);
+}
+
+.replyVerify .replyPwIn:focus{
+  border-color: rgba(255,182,0,.45);
+  box-shadow: 0 0 0 3px rgba(255,182,0,.14);
+}
+
+/* 확인 버튼 – 포인트 컬러만 */
+.replyVerify .gbSubmit{
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,182,0,.35);
+  background: rgba(255,182,0,.14);
+  color: rgba(120,53,15,.95);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+/* 취소 버튼 – 완전 뉴트럴 */
+.replyVerify .btn.ghost{
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: rgba(15,23,42,.55);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.replyVerify .btn.ghost:hover{
+  text-decoration: underline;
+}
+
+/* 모바일 */
+@media (max-width:560px){
+  .replyVerify .replyPwIn{
+    width: 100%;
+  }
+}
+
+.verifyPw{ margin-top:-1px; } /* 너무 과하면 -0.5px은 안돼서 0으로 */
+
+/* ✅ 본인확인: 오른쪽 아래로 붙는 인라인 */
+.verifyInline{
+  margin-top: 2px;              /* ✅ 위쪽 여백 줄임 */
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;     /* ✅ 오른쪽 정렬 */
+  width: 100%;                   /* ✅ full width로 오른쪽 끝까지 */
+  flex-wrap: wrap;
+}
+
+/* 입력 */
+.verifyPw{
+  height: 34px;
+  width: 220px;
+  max-width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(15,23,42,.12);
+  background: #fff;
+  padding: 0 12px;
+  font-size: 13px;
+  outline: none;
+}
+.verifyPw:focus{
+  border-color: rgba(255,182,0,.45);
+  box-shadow: 0 0 0 3px rgba(255,182,0,.14);
+}
+
+/* 확인/취소 버튼형 */
+.verifyBtn{
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,182,0,.35);
+  background: rgba(255,182,0,.14);
+  color: rgba(120,53,15,.95);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.verifyBtn.ghost{
+  border: 1px solid rgba(15,23,42,.12);
+  background: #fff;
+  color: rgba(15,23,42,.62);
 }
 
 `;

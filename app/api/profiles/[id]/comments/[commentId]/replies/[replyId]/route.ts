@@ -25,7 +25,7 @@ export async function PATCH(
         .from("profile_comment_replies")
         .update({ content })
         .eq("id", replyId)
-        .select("id,comment_id,name,avatar,content,is_admin,created_at")
+        .select("id,comment_id,name,avatar,content,image_urls,is_admin,created_at")
         .single();
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -57,7 +57,7 @@ export async function PATCH(
       .from("profile_comment_replies")
       .update({ content })
       .eq("id", replyId)
-      .select("id,comment_id,name,avatar,content,is_admin,created_at")
+      .select("id,comment_id,name,avatar,content,image_urls,is_admin,created_at")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -12,7 +12,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from("profile_comment_replies")
-    .select("id,comment_id,name,avatar,content,is_admin,created_at")
+    .select("id,comment_id,name,avatar,content,image_urls,is_admin,created_at") // ✅ 여기 추가!
     .eq("comment_id", commentId)
     .order("created_at", { ascending: true });
 
@@ -31,6 +31,7 @@ export async function POST(
   const name = String(body?.name ?? "").trim();
   const avatar = String(body?.avatar ?? "🙂").trim() || "🙂";
   const content = String(body?.content ?? "").trim();
+const image_urls = Array.isArray(body?.image_urls) ? body.image_urls.filter(Boolean) : [];
   const password = String(body?.password ?? "").trim();
   const adminKey = String(body?.adminKey ?? "").trim();
 
@@ -52,10 +53,11 @@ export async function POST(
       name,
       avatar,
       content,
+      image_urls,
       pw_hash,
       is_admin: isAdmin,
     })
-    .select("id,comment_id,name,avatar,content,is_admin,created_at")
+    .select("id,comment_id,name,avatar,content,image_urls,is_admin,created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

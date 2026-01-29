@@ -3,6 +3,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { PAGE_BG, FONT_STACK, card, input, btn, btnAccent } from "@/lib/pbTheme";
 
 type Post = {
   id: string;
@@ -188,14 +189,14 @@ const ordered = useMemo(() => {
   // ✅ 복귀 중이면 화면 안 그림(깜빡임 최소화)
   if (shouldResume) return null;
 
-  return (
-    <main className="board">
-      <div className="wrap">
+return (
+  <main className="board" style={{ background: PAGE_BG, fontFamily: FONT_STACK }}>
+    <div className="wrap">
         <header className="head">
           <div className="h-left">
             <div className="kicker">PROMISE</div>
             <h1 className="title">멤버 프로필</h1>
-            <p className="sub">공사중임니다 ㅇㅅㅠ</p>
+            <p className="sub">공사중</p>
           </div>
 
           <div className="tools">
@@ -206,20 +207,21 @@ const ordered = useMemo(() => {
                   d="M10 2a8 8 0 1 0 4.9 14.3l4.4 4.4 1.4-1.4-4.4-4.4A8 8 0 0 0 10 2m0 2a6 6 0 1 1 0 12a6 6 0 0 1 0-12Z"
                 />
               </svg>
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="이름 / 역할 / 소개 검색…"
-                aria-label="프로필 검색"
-              />
+<input
+  className="searchInput"
+  value={q}
+  onChange={(e) => setQ(e.target.value)}
+  placeholder="이름 / 역할 / 소개 검색…"
+  aria-label="프로필 검색"
+/>
             </div>
 
-            <button className="btn" onClick={refresh} disabled={refreshing}>
-              {refreshing ? "새로고침…" : "새로고침"}
-            </button>
+<button className="btn accent" onClick={refresh} disabled={refreshing}>
+  {refreshing ? "새로고침…" : "새로고침"}
+</button>
 
             <a className="btn ghost" href="/profiles/admin?embed=1">
-              관리자 등록
+              프로필 등록
             </a>
 
             <button
@@ -355,14 +357,23 @@ const css = `
   --muted: rgba(15,23,42,.60);
   --line: rgba(15,23,42,.10);
   --shadow: 0 10px 30px rgba(15,23,42,.08);
-  --accent: rgba(245,158,11,.95);
-  --accent-soft: rgba(245,158,11,.12);
+
+  /* ✅ 포인트 컬러 */
+  --pt: #ffb600;
+  --pt-soft: rgba(255,182,0,.16);
+  --pt-weak: rgba(255,182,0,.10);
+}
+
+:global(html),
+:global(body){
+  background:#ffffff !important;
 }
 
 .board{
   min-height:100vh;
-  background: var(--bg);
+  background: transparent; /* ✅ PAGE_BG는 inline style로 들어감 */
   color: var(--text);
+  font-family: inherit;     /* ✅ FONT_STACK는 inline style로 들어감 */
 }
 
 .wrap{
@@ -431,16 +442,17 @@ const css = `
 }
 .search svg{ color: rgba(15,23,42,.45); }
 
-.search input{
-  border:0;
-  outline:none;
-  background: transparent;
+.searchInput{
+  border:0 !important;
+  outline:none !important;
+  box-shadow:none !important;
+  background: transparent !important;
   width: 290px;
-  font-size: 14px;            /* ✅ 더 큼 */
+  font-size: 14px;
   color: rgba(15,23,42,.86);
 }
 @media (max-width: 560px){
-  .search input{ width: 200px; }
+  .searchInput{ width: 200px; }
 }
 
 /* ✅ 버튼 (요청: 글자 굵기 줄이기) */
@@ -448,34 +460,48 @@ const css = `
   height: 44px;
   padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid rgba(245,158,11,.25);
-  background: rgba(245,158,11,.10);
-  color: rgba(120,53,15,.95);
-  font-weight: 650;           /* ✅ 기존 800 -> 650 */
+  border: 1px solid rgba(15,23,42,.12);
+  background: rgba(255,255,255,.98);
+  color: rgba(15,23,42,.78);
+  font-weight: 600;
   font-size: 13.5px;
   cursor:pointer;
   text-decoration:none;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
-  box-shadow: 0 8px 22px rgba(245,158,11,.12);
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
+  box-shadow: 0 8px 22px rgba(15,23,42,.06);
 }
+
 .btn:hover{
-  background: rgba(245,158,11,.14);
+  background: rgba(15,23,42,.02);
   transform: translateY(-1px);
 }
+
 .btn:disabled{ opacity:.6; cursor:default; transform:none; }
 
+/* ✅ 포인트 버튼(새로고침) - 과하지 않게 */
+.btn.accent{
+  border-color: rgba(255,182,0,.35);
+  background: rgba(255,182,0,.10);
+  color: rgba(120,53,15,.92);
+  box-shadow: 0 10px 24px rgba(255,182,0,.10);
+}
+.btn.accent:hover{
+  background: rgba(255,182,0,.14);
+  box-shadow: 0 0 0 4px var(--pt-soft), 0 14px 34px rgba(15,23,42,.10);
+}
+
+/* ghost는 그냥 라이트하게 */
 .btn.ghost{
   border-color: rgba(15,23,42,.12);
   background: rgba(255,255,255,.98);
   color: rgba(15,23,42,.76);
-  font-weight: 650;           /* ✅ 통일 */
-  box-shadow: 0 8px 22px rgba(15,23,42,.06);
+  font-weight: 600;
 }
 .btn.ghost:hover{
-  background: rgba(15,23,42,.02);
+  box-shadow: 0 0 0 4px rgba(15,23,42,.06);
 }
 
 /* 상태/빈화면 */
@@ -702,6 +728,45 @@ const css = `
 .scroll-top,
 a[href="#top"]{
   display:none !important;
+}
+
+.profilesWrap{
+  background:#fff;
+}
+
+.profilesHead{
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+/* ✅ 검색/이름/역할/소개 입력칸 등: 내부 테두리 제거 */
+.profilesHead input,
+.profilesHead textarea,
+.profilesHead select,
+.searchInput,
+.qInput{
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: var(--text);
+}
+
+/* 입력칸은 "밑줄/라이트 박스" 느낌으로만 */
+.searchBox,
+.inputBox,
+.qWrap{
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.searchBox:focus-within,
+.inputBox:focus-within,
+.qWrap:focus-within{
+  border-color: rgba(255,182,0,.45);
+  box-shadow: 0 0 0 4px var(--pt-soft);
 }
 `;
 
